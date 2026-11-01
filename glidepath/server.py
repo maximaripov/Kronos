@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Glidepath local server: serves the app and proxies live stock quotes.
+"""Glidepath server: serves the app, proxies live stock quotes and stores your data.
 
 Usage:  python glidepath/server.py [--port 8000] [--host 127.0.0.1]
+
+Hosting: set GLIDEPATH_PASSWORD (required online), GLIDEPATH_SECRET and
+DATABASE_URL (see storage.py). PORT is read from the environment if set.
 
 Quotes come from Yahoo Finance's public chart endpoint. It is unofficial and
 undocumented, so it can change or rate-limit without notice. Uses only the
 Python standard library.
 """
 import argparse
+import html
 import json
+import os
 import re
 import threading
 import time
@@ -33,6 +38,29 @@ _lock = threading.Lock()
 import forecast as kronos_forecast  # noqa: E402
 import sp500  # noqa: E402
 import yahoo  # noqa: E402  (stdlib-only at import; heavy deps load on first forecast)
+import auth  # noqa: E402
+import storage  # noqa: E402
+
+STORE = None  # set in main()
+STATIC = {"/": "index.html", "/index.html": "index.html", "/sp500.js": "sp500.js"}
+MAX_BODY = 2 * 1024 * 1024
+LOGIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · Glidepath</title>
+<style>
+:root{--bg:#F6F5F2;--surface:#fff;--ink:#1E2027;--muted:#6C717D;--line:#EAE7E1;--btn:#D9581F;--down:#DC3F45;--accent-soft:#FCEEE6}
+@media (prefers-color-scheme:dark){:root{--bg:#0D1220;--surface:#161C2C;--ink:#EDEFF5;--muted:#959CAD;--line:#252D40;--btn:#E8622C;--down:#FF6D72;--accent-soft:#33221F;color-scheme:dark}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+form{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px;width:min(360px,100%);display:grid;gap:14px;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+h1{margin:0;font-size:22px}p{margin:0;color:var(--muted);font-size:14px}
+input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+input:focus{outline:none;border-color:var(--btn);box-shadow:0 0 0 3px var(--accent-soft)}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px;background:var(--btn);color:#fff;cursor:pointer}
+.err{color:var(--down);font-size:14px}
+</style></head><body><form method="post" action="login">
+<h1>Glidepath</h1><p>Enter your password to open your portfolio.</p>
+<input type="password" name="password" autocomplete="current-password" aria-label="Password" required autofocus>
+{error}<button type="submit">Sign in</button></form></body></html>"""
+
 
 FORECAST_OK = kronos_forecast.dependencies_available()
 _forecaster = None
@@ -135,9 +163,109 @@ def refresh_sp500_if_stale():
         print("S&P 500 refresh skipped:", e)
 
 
+def sp500_refresher():
+    while True:
+        refresh_sp500_if_stale()
+        time.sleep(6 * 3600)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(ROOT), **kw)
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("X-Frame-Options", "DENY")
+        super().end_headers()
+
+    def do_HEAD(self):  # the base class would serve any file here; refuse instead
+        self.send_response(405)
+        self.send_header("Allow", "GET, POST, PUT")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    # --- helpers -------------------------------------------------------
+    def _secure(self):
+        return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def _client(self):
+        fwd = self.headers.get("X-Forwarded-For", "")
+        return fwd.split(",")[0].strip() or self.client_address[0]
+
+    def _authed(self):
+        return auth.valid_session(self.headers.get("Cookie"))
+
+    def _redirect(self, where, cookie=None):
+        self.send_response(303)
+        self.send_header("Location", where)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _html(self, code, body):
+        raw = body.encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _body(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > MAX_BODY:
+            raise ValueError("too large")
+        return self.rfile.read(n) if n else b""
+
+    def _login_page(self, code=200, error=""):
+        err = f'<p class="err" role="alert">{html.escape(error)}</p>' if error else ""
+        return self._html(code, LOGIN_PAGE.replace("{error}", err))
+
+    # --- sign in / out and stored state ---------------------------------
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        if u.path == "/login":
+            if not auth.enabled:
+                return self._redirect("./")
+            client = self._client()
+            if auth.locked_out(client):
+                return self._login_page(429, "Too many wrong attempts. Wait 15 minutes and try again.")
+            try:
+                form = urllib.parse.parse_qs(self._body().decode("utf-8", "replace"))
+            except ValueError:
+                return self._login_page(413, "Request too large.")
+            if auth.check_password(client, form.get("password", [""])[0]):
+                return self._redirect("./", auth.make_cookie(self._secure()))
+            return self._login_page(401, "That password isn't right.")
+        if u.path == "/logout":
+            return self._redirect("login", auth.clear_cookie(self._secure()))
+        return self._json(404, {"error": "Not found"})
+
+    def do_PUT(self):
+        u = urllib.parse.urlparse(self.path)
+        if u.path != "/api/state":
+            return self._json(404, {"error": "Not found"})
+        if not self._authed():
+            return self._json(401, {"error": "Sign in first."})
+        if "application/json" not in self.headers.get("Content-Type", ""):
+            return self._json(415, {"error": "Send JSON."})
+        try:
+            doc = json.loads(self._body())
+            state, base = doc["state"], int(doc.get("base") or 0)
+            if not isinstance(state, dict):
+                raise ValueError
+        except (ValueError, KeyError, TypeError):
+            return self._json(400, {"error": "Send {state, base}."})
+        try:
+            at = STORE.put(state, base)
+        except storage.Conflict as c:
+            return self._json(409, {"state": c.state, "updatedAt": c.updated_at})
+        except Exception as e:
+            print("Save failed:", e)
+            return self._json(503, {"error": "Couldn't save right now."})
+        return self._json(200, {"updatedAt": at})
 
     def log_message(self, fmt, *args):
         if "/api/" in (args[0] if args else ""):
@@ -155,8 +283,24 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
+        if u.path == "/healthz":
+            return self._json(200, {"ok": True})
+        if u.path == "/login":
+            return self._redirect("./") if (auth.enabled and self._authed()) or not auth.enabled else self._login_page()
+        if not self._authed():
+            if u.path.startswith("/api/"):
+                return self._json(401, {"error": "Sign in first."})
+            return self._redirect("login")
         if u.path == "/api/health":
-            return self._json(200, {"ok": True, "source": "Yahoo Finance (unofficial)", "forecast": FORECAST_OK})
+            return self._json(200, {"ok": True, "source": "Yahoo Finance (unofficial)", "forecast": FORECAST_OK,
+                                    "sync": STORE is not None, "store": STORE.kind if STORE else None, "auth": auth.enabled})
+        if u.path == "/api/state":
+            try:
+                state, at = STORE.get()
+            except Exception as e:
+                print("Load failed:", e)
+                return self._json(503, {"error": "Couldn't load your data right now."})
+            return self._json(200, {"state": state, "updatedAt": at})
         if u.path == "/api/forecast":
             sym = urllib.parse.parse_qs(u.query).get("symbol", [""])[0].strip().upper()
             if not SYMBOL_RE.match(sym):
@@ -182,15 +326,16 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": f"Pass 1-{MAX_SYMBOLS} valid symbols, comma-separated."})
             quotes = get_quotes(syms)
             return self._json(200, {"quotes": quotes, "asOf": int(time.time())})
-        if u.path == "/":
-            self.path = "/index.html"
+        if u.path not in STATIC:  # serve only the app itself, never source or data files
+            return self._json(404, {"error": "Not found"})
+        self.path = "/" + STATIC[u.path]
         return super().do_GET()
 
 
 def main():
     ap = argparse.ArgumentParser(description="Run Glidepath with live quotes.")
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--host", default="0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8000))
     ap.add_argument("--model", choices=["mini", "small", "base"], default=None, help="Kronos model size for forecasts")
     ap.add_argument("--lookback", type=int, default=None, help="Trading days of history fed to Kronos")
     a = ap.parse_args()
@@ -198,8 +343,13 @@ def main():
     MODEL_SIZE = a.model or MODEL_SIZE
     LOOKBACK = a.lookback or LOOKBACK
     print("Forecasts:", f"Kronos-{MODEL_SIZE}, {LOOKBACK}-day lookback" if FORECAST_OK else "off (pip install -r requirements.txt to enable)")
+    global STORE
+    STORE = storage.make_store(ROOT)
+    print("Data stored in:", STORE.kind)
+    if a.host not in ("127.0.0.1", "localhost") and not auth.enabled:
+        print("WARNING: reachable from other devices with no password. Set GLIDEPATH_PASSWORD before putting this online.")
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
-    threading.Thread(target=refresh_sp500_if_stale, daemon=True).start()
+    threading.Thread(target=sp500_refresher, daemon=True).start()
     print(f"Glidepath running at http://{a.host}:{a.port}  (Ctrl+C to stop)")
     try:
         srv.serve_forever()

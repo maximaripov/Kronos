@@ -231,6 +231,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap:
     <a href="#retirement" data-view="retirement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18h16"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 5v3M5.6 8.6l1.8 1.8M18.4 8.6l-1.8 1.8"/></svg>Retirement</a>
   </nav>
   <div class="side-foot">
+    <span class="live" id="sync-status" hidden><i></i><span></span></span>
+    <form method="post" action="logout" id="signout-form" hidden><button class="ghost" type="submit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h4v16h-4"/><path d="M10 8l-4 4 4 4M6 12h10"/></svg>Sign out</button></form>
     <button class="ghost" id="btn-data" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>Back up / restore</button>
   </div>
 </aside>
@@ -400,10 +402,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap:
 <dialog id="dlg-data" aria-labelledby="dlg-data-title">
   <form method="dialog" id="data-form">
     <h2 id="dlg-data-title">Back up or restore</h2>
-    <p class="fine">Glidepath keeps your data in this browser only. Copy this text somewhere safe to back it up, or paste a backup here and restore it.</p>
+    <p class="fine" id="data-note">Glidepath keeps your data in this browser only. Copy this text somewhere safe to back it up, or paste a backup here and restore it.</p>
     <textarea id="data-text" spellcheck="false" aria-label="Backup data"></textarea>
     <p class="err" id="data-err"></p>
     <div class="actions">
+      <button type="button" id="data-signout" class="danger" hidden>Sign out</button>
       <button type="button" id="data-close">Close</button>
       <button type="button" id="data-copy">Copy</button>
       <button type="button" class="primary" id="data-restore">Restore from text</button>
@@ -529,7 +532,10 @@ function sanitize(s) {
 }
 let state;
 try { state = sanitize(load()); } catch (e) { state = freshState(); }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  if (typeof scheduleSync === "function") scheduleSync();
+}
 
 const totals = () => {
   const value = state.holdings.reduce((s, h) => s + h.shares * h.price, 0);
@@ -1144,8 +1150,10 @@ async function detectLive() {
   if (!/^https?:$/.test(location.protocol)) return renderLiveStatus();
   try {
     const r = await fetch("api/health", { cache: "no-store" });
+    if (r.status === 401) { location.href = "login"; return; }
     const j = r.ok ? await r.json() : {};
     live.ok = j.ok === true; live.forecast = live.ok && j.forecast === true;
+    if (live.ok) await initSync(j);
   } catch (e) { live.ok = false; }
   renderLiveStatus();
   if (!live.ok) return;
@@ -1222,6 +1230,65 @@ async function openForecast(sym) {
   }
 }
 $("#dlg-forecast").addEventListener("close", () => fcToken++);
+
+/* ---------- account sync ---------- */
+// When served by the Glidepath server, your data is also saved there, so every device sees the same portfolio.
+const sync = { on: false, at: 0, timer: null, pending: false, inflight: false };
+function setSyncStatus(text, good) {
+  const el = $("#sync-status"); el.hidden = false; el.classList.toggle("on", !!good);
+  el.querySelector("span").textContent = text;
+}
+function scheduleSync() {
+  if (!sync.on) return;
+  sync.pending = true; clearTimeout(sync.timer);
+  sync.timer = setTimeout(pushState, 700);
+}
+function adoptRemote(doc) {
+  state = sanitize(doc.state); sync.at = doc.updatedAt;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  fillRetireForm(); populateSectors(); renderCurrent();
+}
+async function pushState() {
+  if (sync.inflight) { sync.timer = setTimeout(pushState, 500); return; }
+  sync.inflight = true; sync.pending = false;
+  try {
+    const r = await fetch("api/state", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state, base: sync.at }) });
+    if (r.status === 401) { location.href = "login"; return; }
+    if (r.status === 409) { adoptRemote(await r.json()); toast("Loaded newer changes from another device. Your last edit here was not saved."); setSyncStatus("Saved to your account", true); return; }
+    if (!r.ok) throw new Error(r.status);
+    sync.at = (await r.json()).updatedAt;
+    setSyncStatus("Saved to your account", true);
+  } catch (e) {
+    setSyncStatus("Not saved yet. Retrying…", false);
+    sync.pending = true; clearTimeout(sync.timer); sync.timer = setTimeout(pushState, 15000);
+  } finally { sync.inflight = false; }
+}
+async function pullState() {
+  if (!sync.on || sync.pending || sync.inflight) return;
+  try {
+    const r = await fetch("api/state", { cache: "no-store" });
+    if (r.status === 401) { location.href = "login"; return; }
+    if (!r.ok) return;
+    const doc = await r.json();
+    if (doc.state && doc.updatedAt > sync.at) adoptRemote(doc);
+  } catch (e) {}
+}
+async function initSync(health) {
+  if (health.auth) { $("#signout-form").hidden = false; $("#data-signout").hidden = false; }
+  if (!health.sync) return;
+  try {
+    const r = await fetch("api/state", { cache: "no-store" });
+    if (r.status === 401) { location.href = "login"; return; }
+    if (!r.ok) throw new Error(r.status);
+    const doc = await r.json();
+    sync.on = true;
+    $("#data-note").textContent = "Your data is saved to your Glidepath account and shared across your devices. You can still copy it here as an extra backup, or paste a backup to restore it everywhere.";
+    if (doc.state) { adoptRemote(doc); setSyncStatus("Saved to your account", true); }
+    else { sync.at = 0; await pushState(); }
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pullState(); });
+  } catch (e) { setSyncStatus("Account unavailable. Saving on this device only.", false); }
+}
+$("#data-signout").addEventListener("click", () => $("#signout-form").submit());
 
 /* ---------- routing ---------- */
 const VIEWS = ["portfolio", "screener", "retirement"];

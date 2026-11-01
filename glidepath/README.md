@@ -2,13 +2,13 @@
 
 A personal finance dashboard in one static file: portfolio tracking, a stock screener, and a Monte Carlo retirement planner.
 
-Open `index.html` in a browser, or serve the folder: `python -m http.server -d glidepath 8000`.
+Run `python glidepath/server.py` and open http://127.0.0.1:8000. To put it online behind a password with your data synced across devices, follow [DEPLOY.md](DEPLOY.md).
 
 - **Portfolio**: holdings, prices you enter, unrealized gain, allocation, and value-vs-cost-basis history from snapshots you record.
 - **Screener**: all ~500 S&P 500 stocks, filtered by market cap, P/E, forward P/E, yield, year-over-year revenue growth, beta and net margin. Fundamentals live in `sp500.js`, built from Yahoo Finance by `python glidepath/sp500.py` (about 25 seconds); the server rebuilds it once a day. You can also load your own CSV.
 - **Retirement**: 2,000 simulated market paths in today's dollars, with a glide path that de-risks returns and volatility before retirement. Reports success rate and the spending level sustainable at 85% confidence.
 
-Data stays in the browser (`localStorage`). Use **Back up / restore** to copy it out.
+Your data is saved by the server (a local file, or Postgres when `DATABASE_URL` is set) and cached in the browser. Opened straight from disk, it stays in that browser only. Use **Back up / restore** for an extra copy.
 
 ## Live prices
 

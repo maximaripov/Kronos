@@ -1,0 +1,20 @@
+# Render Blueprint for Glidepath (see glidepath/DEPLOY.md).
+# Free plan: sleeps after ~15 idle minutes; your data lives in DATABASE_URL (Neon Postgres), not on the server.
+services:
+  - type: web
+    name: glidepath
+    runtime: python
+    plan: free
+    rootDir: glidepath
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: GLIDEPATH_PASSWORD
+        sync: false          # you type this in Render when deploying
+      - key: DATABASE_URL
+        sync: false          # paste your Neon connection string
+      - key: GLIDEPATH_SECRET
+        generateValue: true  # Render makes a random signing key
