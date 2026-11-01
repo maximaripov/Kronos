@@ -80,6 +80,10 @@ label.field > span { display: flex; justify-content: space-between; gap: 8px; }
 /* notices */
 .notice { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px dashed var(--warn); color: var(--ink); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
 .notice strong { color: var(--warn); }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.live.on i { background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 22%, transparent); }
+.live code { font-family: var(--mono); font-size: 12px; background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; color: var(--ink); }
 .notice .row { margin-left: auto; }
 
 /* stats */
@@ -185,9 +189,11 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
     <div class="view-head">
       <div>
         <h1>Portfolio</h1>
-        <p>Your holdings at the prices you last entered. Record a snapshot after each update to build your performance history.</p>
+        <p>Your holdings, valued at live prices when the Glidepath server is running and at your own entered prices otherwise. Each day's value is saved to build your performance history.</p>
       </div>
       <div class="row">
+        <span class="live" id="live-status"><i></i><span>Checking for live prices…</span></span>
+        <button type="button" id="btn-refresh" hidden>Refresh prices</button>
         <button type="button" id="btn-snapshot">Record today's value</button>
         <button type="button" class="primary" id="btn-add">Add holding</button>
       </div>
@@ -214,7 +220,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><h2>Holdings</h2><span class="fine">Edit a price in place to revalue the portfolio.</span></div>
+      <div class="panel-head"><h2>Holdings</h2><span class="fine" id="pf-hint">Edit a price in place to revalue the portfolio.</span></div>
       <div class="table-scroll"><table id="pf-table"></table></div>
     </div>
   </section>
@@ -376,6 +382,7 @@ const fmt$ = v => usd0.format(Math.round(v));
 const fmt$2 = v => usd2.format(v);
 const compact$ = v => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e12) return s + "$" + (a / 1e12).toFixed(2).replace(/\.?0+$/, "") + "T";
   if (a >= 1e9) return s + "$" + (a / 1e9).toFixed(a >= 1e10 ? 0 : 1) + "B";
   if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(a >= 1e7 ? 1 : 2).replace(/\.?0+$/, "") + "M";
   if (a >= 1e3) return s + "$" + Math.round(a / 1e3) + "K";
@@ -477,11 +484,12 @@ function load() {
 function sanitize(s) {
   if (!s || typeof s !== "object" || !Array.isArray(s.holdings)) throw new Error("This does not look like a Glidepath backup.");
   return {
-    holdings: s.holdings.map(h => ({ id: h.id || uid(), ticker: String(h.ticker || "?").toUpperCase(), name: String(h.name || ""), cls: String(h.cls || "Other"), shares: num(h.shares), cost: num(h.cost), price: num(h.price) })),
+    holdings: s.holdings.map(h => ({ id: h.id || uid(), ticker: String(h.ticker || "?").toUpperCase(), name: String(h.name || ""), cls: String(h.cls || "Other"), shares: num(h.shares), cost: num(h.cost), price: num(h.price), prevClose: Number.isFinite(h.prevClose) ? h.prevClose : null })),
     history: Array.isArray(s.history) ? s.history.filter(p => p && p.date).map(p => ({ date: String(p.date), value: num(p.value), basis: num(p.basis) })) : [],
     example: !!s.example,
     retire: { ...RETIRE_DEFAULTS, ...(s.retire || {}) },
     screen: Array.isArray(s.screen) ? s.screen : null,
+    quotesAt: Number.isFinite(s.quotesAt) ? s.quotesAt : null,
   };
 }
 let state;
@@ -595,11 +603,15 @@ function renderPortfolio() {
     const marketGain = (t.value - first.value) - (t.basis - first.basis);
     since = `<div class="stat"><span class="eyebrow">Market gain since ${esc(fmtDate(first.date))}</span><span class="value ${cls(marketGain)}">${signed$(marketGain)}</span><span class="sub">Change in value minus new money added</span></div>`;
   }
+  const priced = state.holdings.filter(h => h.prevClose > 0);
+  const dayChg = priced.reduce((s, h) => s + h.shares * (h.price - h.prevClose), 0);
+  const dayBase = priced.reduce((s, h) => s + h.shares * h.prevClose, 0);
+  const dayStat = priced.length ? `<div class="stat"><span class="eyebrow">Last session</span><span class="value ${cls(dayChg)}">${signed$(dayChg)}</span><span class="sub ${cls(dayChg)}">${dayBase ? pct(dayChg / dayBase, 2) : ""} · ${priced.length} live-priced</span></div>` : "";
   const top = state.holdings.slice().sort((a, b) => b.shares * b.price - a.shares * a.price)[0];
   $("#pf-stats").innerHTML = `
     <div class="stat"><span class="eyebrow">Market value</span><span class="value">${fmt$(t.value)}</span><span class="sub">${state.holdings.length} holdings</span></div>
     <div class="stat"><span class="eyebrow">Unrealized gain</span><span class="value ${cls(t.gain)}">${signed$(t.gain)}</span><span class="sub ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) + " on cost" : "No cost basis"}</span></div>
-    ${since}
+    ${dayStat}${since}
     <div class="stat"><span class="eyebrow">Largest position</span><span class="value">${top ? esc(top.ticker) : "None"}</span><span class="sub">${top && t.value ? ((top.shares * top.price / t.value) * 100).toFixed(1) + "% of portfolio" : "Add a holding to start"}</span></div>`;
 
   // chart
@@ -627,7 +639,7 @@ function renderPortfolio() {
   const rows = state.holdings.slice().sort((a, b) => b.shares * b.price - a.shares * a.price);
   const tbl = $("#pf-table");
   if (!rows.length) { tbl.innerHTML = `<tbody><tr><td class="empty">No holdings yet. Choose “Add holding” or add one from the screener.</td></tr></tbody>`; return; }
-  tbl.innerHTML = `<thead><tr><th>Holding</th><th>Class</th><th class="n">Shares</th><th class="n">Avg cost</th><th class="n">Price</th><th class="n">Value</th><th class="n">Gain</th><th class="n">Return</th><th class="n">Weight</th><th></th></tr></thead>
+  tbl.innerHTML = `<thead><tr><th>Holding</th><th>Class</th><th class="n">Shares</th><th class="n">Avg cost</th><th class="n">Price</th><th class="n">Day</th><th class="n">Value</th><th class="n">Gain</th><th class="n">Return</th><th class="n">Weight</th><th></th></tr></thead>
   <tbody>${rows.map(h => {
     const v = h.shares * h.price, b = h.shares * h.cost, g = v - b;
     return `<tr data-id="${h.id}">
@@ -636,6 +648,7 @@ function renderPortfolio() {
       <td class="n">${h.shares.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
       <td class="n">${fmt$2(h.cost)}</td>
       <td class="n"><input class="price" type="number" step="any" min="0" value="${h.price}" aria-label="Price of ${esc(h.ticker)}" id="price-${h.id}"></td>
+      <td class="n ${h.prevClose > 0 ? cls(h.price - h.prevClose) : ""}">${h.prevClose > 0 ? pct(h.price / h.prevClose - 1, 2) : "–"}</td>
       <td class="n">${fmt$(v)}</td>
       <td class="n ${cls(g)}">${signed$(g)}</td>
       <td class="n ${cls(g)}">${b ? pct(g / b) : "–"}</td>
@@ -643,14 +656,14 @@ function renderPortfolio() {
       <td class="n"><button type="button" class="ghost" data-act="edit">Edit</button><button type="button" class="ghost danger" data-act="remove">${confirmRemove === h.id ? "Confirm remove" : "Remove"}</button></td>
     </tr>`;
   }).join("")}</tbody>
-  <tfoot><tr><td>Total</td><td></td><td></td><td></td><td></td><td class="n">${fmt$(t.value)}</td><td class="n ${cls(t.gain)}">${signed$(t.gain)}</td><td class="n ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) : "–"}</td><td class="n">100%</td><td></td></tr></tfoot>`;
+  <tfoot><tr><td>Total</td><td></td><td></td><td></td><td></td><td></td><td class="n">${fmt$(t.value)}</td><td class="n ${cls(t.gain)}">${signed$(t.gain)}</td><td class="n ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) : "–"}</td><td class="n">100%</td><td></td></tr></tfoot>`;
 }
 
 $("#pf-table").addEventListener("change", e => {
   if (!e.target.matches("input.price")) return;
   const h = state.holdings.find(x => x.id === e.target.closest("tr").dataset.id);
   if (!h) return;
-  h.price = Math.max(0, num(e.target.value, h.price));
+  h.price = Math.max(0, num(e.target.value, h.price)); h.prevClose = null;
   save(); renderPortfolio(); renderRetirementIfLinked();
 });
 $("#pf-table").addEventListener("click", e => {
@@ -708,6 +721,8 @@ $("#holding-form").addEventListener("submit", e => {
 /* ---------- screener ---------- */
 const COLS = [
   { k: "ticker", label: "Ticker" }, { k: "sector", label: "Sector" },
+  { k: "price", label: "Price", n: true, live: true, f: v => fmt$2(v) },
+  { k: "day", label: "Day", n: true, live: true, f: v => pct(v / 100, 2), c: v => cls(v) },
   { k: "mcap", label: "Mkt cap", n: true, f: v => compact$(v * 1e9) },
   { k: "pe", label: "P/E", n: true, f: v => (v > 0 ? v.toFixed(1) : "n/m") },
   { k: "yield", label: "Yield", n: true, f: v => v.toFixed(2) + "%" },
@@ -724,7 +739,11 @@ const PRESETS = [
 ];
 const FILTER_IDS = { q: "#f-q", sector: "#f-sector", mcap: "#f-mcap", pe: "#f-pe", yield: "#f-yield", growth: "#f-growth", beta: "#f-beta", margin: "#f-margin" };
 let sort = { k: "mcap", dir: -1 }, activePreset = null;
-const universe = () => state.screen || SAMPLE_STOCKS;
+const universe = () => {
+  const base = state.screen || SAMPLE_STOCKS;
+  return base.map(s => { const q = screenQuotes[s.ticker]; return q && !q.error ? { ...s, price: q.price, day: q.prevClose ? (q.price / q.prevClose - 1) * 100 : NaN } : { ...s, price: NaN, day: NaN }; });
+};
+const visibleCols = () => COLS.filter(c => !c.live || live.ok);
 
 function populateSectors() {
   const sel = $("#f-sector"), cur = sel.value;
@@ -759,13 +778,14 @@ function renderScreener() {
   });
   $("#sc-count").textContent = `${rows.length} of ${all.length} stocks match`;
   const held = new Set(state.holdings.map(h => h.ticker));
-  $("#sc-table").innerHTML = `<thead><tr>${COLS.map(c => `<th class="${c.n ? "n" : ""}" ${sort.k === c.k ? `aria-sort="${sort.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="sort" data-k="${c.k}">${c.label}${sort.k === c.k ? (sort.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`).join("")}<th></th></tr></thead>
+  const cols = visibleCols();
+  $("#sc-table").innerHTML = `<thead><tr>${cols.map(c => `<th class="${c.n ? "n" : ""}" ${sort.k === c.k ? `aria-sort="${sort.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="sort" data-k="${c.k}">${c.label}${sort.k === c.k ? (sort.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`).join("")}<th></th></tr></thead>
   <tbody>${rows.length ? rows.map(s => `<tr>
     <td><span class="tkr">${esc(s.ticker)}</span><span class="nm">${esc(s.name)}</span></td>
     <td>${esc(s.sector)}</td>
-    ${COLS.slice(2).map(c => `<td class="n">${Number.isFinite(s[c.k]) ? c.f(s[c.k]) : "–"}</td>`).join("")}
+    ${cols.slice(2).map(c => `<td class="n ${c.c && Number.isFinite(s[c.k]) ? c.c(s[c.k]) : ""}">${Number.isFinite(s[c.k]) ? c.f(s[c.k]) : "–"}</td>`).join("")}
     <td class="n">${held.has(s.ticker) ? `<span class="fine">In portfolio</span>` : `<button type="button" class="ghost" data-add="${esc(s.ticker)}">Add to portfolio</button>`}</td>
-  </tr>`).join("") : `<tr><td colspan="${COLS.length + 1}" class="empty">No stocks pass every filter. Loosen one, or reset filters.</td></tr>`}</tbody>`;
+  </tr>`).join("") : `<tr><td colspan="${cols.length + 1}" class="empty">No stocks pass every filter. Loosen one, or reset filters.</td></tr>`}</tbody>`;
 }
 $("#sc-table").addEventListener("click", e => {
   const s = e.target.closest("button.sort");
@@ -773,7 +793,7 @@ $("#sc-table").addEventListener("click", e => {
   const a = e.target.closest("button[data-add]");
   if (a) {
     const st = universe().find(x => x.ticker === a.dataset.add);
-    openHolding(null, { ticker: st.ticker, name: st.name, cls: st.sector === "Real Estate" ? "Real estate" : "US stocks" });
+    openHolding(null, { ticker: st.ticker, name: st.name, cls: st.sector === "Real Estate" ? "Real estate" : "US stocks", price: Number.isFinite(st.price) ? st.price : undefined });
   }
 });
 Object.values(FILTER_IDS).forEach(id => $(id).addEventListener("input", () => { activePreset = null; renderPresets(); renderScreener(); }));
@@ -826,10 +846,10 @@ $("#csv-load").addEventListener("click", () => {
   try {
     const data = importCSV($("#csv-text").value);
     if (!data.length) throw new Error("No rows with a ticker were found.");
-    state.screen = data; save(); populateSectors(); renderScreener(); dlgC.close(); toast(`Loaded ${data.length} stocks`);
+    state.screen = data; save(); screenQuotesAt = 0; populateSectors(); renderScreener(); loadScreenQuotes(); dlgC.close(); toast(`Loaded ${data.length} stocks`);
   } catch (err) { $("#csv-err").textContent = err.message; }
 });
-$("#csv-sample").addEventListener("click", () => { state.screen = null; save(); populateSectors(); renderScreener(); dlgC.close(); toast("Sample data restored"); });
+$("#csv-sample").addEventListener("click", () => { state.screen = null; save(); screenQuotesAt = 0; populateSectors(); renderScreener(); loadScreenQuotes(); dlgC.close(); toast("Sample data restored"); });
 
 /* ---------- retirement ---------- */
 const R_FIELDS = ["age", "retireAge", "endAge", "savings", "contrib", "contribGrowth", "retPre", "volPre", "retPost", "volPost", "glideYears", "inflation", "spending", "other", "otherAge"];
@@ -966,6 +986,86 @@ $("#data-restore").addEventListener("click", () => {
   catch (err) { $("#data-err").textContent = err instanceof SyntaxError ? "That text is not valid JSON. Paste the full backup." : err.message; }
 });
 
+/* ---------- live prices ---------- */
+// Live quotes need the bundled server (python glidepath/server.py). Opened any other way, prices stay manual.
+const live = { ok: false, busy: false };
+let screenQuotes = {}, screenQuotesAt = 0;
+const isPricedLive = h => h.cls !== "Cash" && h.ticker !== "CASH";
+async function getQuotes(symbols) {
+  const out = {};
+  for (let i = 0; i < symbols.length; i += 100) {
+    const r = await fetch("api/quotes?symbols=" + encodeURIComponent(symbols.slice(i, i + 100).join(",")), { cache: "no-store" });
+    if (!r.ok) throw new Error("Quote server answered " + r.status);
+    Object.assign(out, (await r.json()).quotes);
+  }
+  return out;
+}
+function renderLiveStatus() {
+  const el = $("#live-status");
+  $("#btn-refresh").hidden = !live.ok;
+  el.classList.toggle("on", live.ok);
+  if (!live.ok) {
+    el.querySelector("span").innerHTML = 'Manual prices. For live quotes run <code>python glidepath/server.py</code>';
+    $("#pf-hint").textContent = "Edit a price in place to revalue the portfolio.";
+    return;
+  }
+  const at = state.quotesAt ? new Date(state.quotesAt).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : null;
+  el.querySelector("span").textContent = live.busy ? "Updating prices…" : at ? "Live prices · updated " + at : "Live prices available";
+  $("#pf-hint").textContent = "Prices update every 5 minutes while this tab is open. A price you type is replaced at the next update.";
+}
+async function refreshPrices({ quiet = false } = {}) {
+  if (!live.ok || live.busy) return;
+  const syms = [...new Set(state.holdings.filter(isPricedLive).map(h => h.ticker))];
+  if (!syms.length) return;
+  live.busy = true; renderLiveStatus(); $("#btn-refresh").disabled = true;
+  try {
+    const q = await getQuotes(syms), failed = [];
+    state.holdings.forEach(h => {
+      if (!isPricedLive(h)) return;
+      const x = q[h.ticker];
+      if (!x || x.error) { failed.push(h.ticker); return; }
+      h.price = x.price; h.prevClose = x.prevClose ?? null;
+      if (!h.name && x.name) h.name = x.name;
+    });
+    state.quotesAt = Date.now();
+    // keep one snapshot per day, so history builds itself from live prices
+    const t = totals(), d = todayISO();
+    if (state.example) state.history = exampleHistory(state.holdings);
+    else {
+      state.history = state.history.filter(p => p.date !== d);
+      state.history.push({ date: d, value: t.value, basis: t.basis });
+    }
+    save();
+    if (failed.length) toast("No quote for " + failed.join(", ") + ". Check the ticker or keep a manual price.");
+    else if (!quiet) toast("Prices updated");
+  } catch (err) {
+    toast("Couldn't reach the quote server. Prices were not changed.");
+  } finally {
+    live.busy = false; $("#btn-refresh").disabled = false; renderLiveStatus();
+    if (current === "portfolio") renderPortfolio(); else renderRetirementIfLinked();
+  }
+}
+async function loadScreenQuotes() {
+  if (!live.ok || Date.now() - screenQuotesAt < 5 * 60e3) return;
+  screenQuotesAt = Date.now();
+  try { screenQuotes = await getQuotes((state.screen || SAMPLE_STOCKS).map(s => s.ticker)); }
+  catch (e) { screenQuotesAt = 0; }
+  if (current === "screener") renderScreener();
+}
+async function detectLive() {
+  if (!/^https?:$/.test(location.protocol)) return renderLiveStatus();
+  try {
+    const r = await fetch("api/health", { cache: "no-store" });
+    live.ok = r.ok && (await r.json()).ok === true;
+  } catch (e) { live.ok = false; }
+  renderLiveStatus();
+  if (!live.ok) return;
+  if (!state.quotesAt || Date.now() - state.quotesAt > 5 * 60e3) refreshPrices({ quiet: true });
+  if (current === "screener") { renderScreener(); loadScreenQuotes(); }
+  setInterval(() => { if (document.visibilityState === "visible") refreshPrices({ quiet: true }); }, 5 * 60e3);
+}
+$("#btn-refresh").addEventListener("click", () => refreshPrices());
+
 /* ---------- routing ---------- */
 const VIEWS = ["portfolio", "screener", "retirement"];
 let current = "portfolio";
@@ -980,14 +1080,14 @@ function route() {
 }
 function renderCurrent() {
   if (current === "portfolio") renderPortfolio();
-  else if (current === "screener") renderScreener();
+  else if (current === "screener") { renderScreener(); loadScreenQuotes(); }
   else renderRetirement();
 }
 function renderAll() { renderCurrent(); }
 window.addEventListener("hashchange", route);
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (current !== "screener") renderCurrent(); }, 150); });
 
-fillRetireForm(); populateSectors(); renderPresets(); route();
+fillRetireForm(); populateSectors(); renderPresets(); route(); detectLive();
 })();
 </script>
 </body>

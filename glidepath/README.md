@@ -8,4 +8,16 @@ Open `index.html` in a browser, or serve the folder: `python -m http.server -d g
 - **Screener**: filter by market cap, P/E, yield, revenue growth, beta and margin. Ships with approximate sample figures; load your own CSV for real data.
 - **Retirement**: 2,000 simulated market paths in today's dollars, with a glide path that de-risks returns and volatility before retirement. Reports success rate and the spending level sustainable at 85% confidence.
 
-Data stays in the browser (`localStorage`). Use **Back up / restore** to copy it out. There is no live market data feed yet.
+Data stays in the browser (`localStorage`). Use **Back up / restore** to copy it out.
+
+## Live prices
+
+```
+python glidepath/server.py          # then open http://127.0.0.1:8000
+```
+
+The server uses only the Python standard library. It serves the app and proxies quotes from Yahoo Finance's public chart endpoint, caching each symbol for 60 seconds. Once it is running, the portfolio refreshes every 5 minutes while the tab is open, shows each holding's last-session change, and saves one value snapshot per day automatically. The screener gains Price and Day columns.
+
+Holdings with asset class **Cash** are never quoted. If you open `index.html` directly from disk, or view the hosted preview, prices stay manual.
+
+Yahoo's endpoint is unofficial and undocumented. It can change or rate-limit without notice, so treat it as a convenience, not something to build a business on.
