@@ -1,0 +1,994 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glidepath</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky instrument bar + three hash-routed views; summary figures first, detail below. */
+:root {
+  --bg: #F1F4F7; --surface: #FFFFFF; --ink: #13202C; --muted: #5A6876; --line: #D9E0E7;
+  --accent: #1C5B87; --accent-soft: #E1ECF5; --up: #1D7A4E; --down: #B13A3A; --warn: #946400;
+  --band: rgba(28, 91, 135, .16); --grid: #E7ECF1;
+  --c1: #1C5B87; --c2: #3E9C8F; --c3: #C08A2E; --c4: #8A5BB0; --c5: #C2575B; --c6: #7A8794;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0D141B; --surface: #141D26; --ink: #E4EAF0; --muted: #94A2B0; --line: #253240;
+  --accent: #72B4E2; --accent-soft: #19304A; --up: #4FC38C; --down: #EB7A7A; --warn: #E0B04A;
+  --band: rgba(114, 180, 226, .2); --grid: #1D2833;
+  --c1: #72B4E2; --c2: #5CC2B2; --c3: #E0B04A; --c4: #B58ADA; --c5: #EB7A7A; --c6: #8C99A6;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0D141B; --surface: #141D26; --ink: #E4EAF0; --muted: #94A2B0; --line: #253240;
+  --accent: #72B4E2; --accent-soft: #19304A; --up: #4FC38C; --down: #EB7A7A; --warn: #E0B04A;
+  --band: rgba(114, 180, 226, .2); --grid: #1D2833;
+  --c1: #72B4E2; --c2: #5CC2B2; --c3: #E0B04A; --c4: #B58ADA; --c5: #EB7A7A; --c6: #8C99A6;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.num, td.n, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: clamp(26px, 3.2vw, 34px); font-weight: 700; }
+h2 { font-size: 18px; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* top bar */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 12px 28px; flex-wrap: wrap; padding-block: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 21px; color: var(--ink); text-decoration: none; }
+.brand svg { display: block; }
+nav.tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+nav.tabs a { padding: 7px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-weight: 500; }
+nav.tabs a:hover { color: var(--ink); }
+nav.tabs a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.top-actions { margin-left: auto; display: flex; gap: 8px; }
+
+main { padding-block: 28px 64px; }
+.view { display: grid; gap: 20px; }
+.view-head { display: flex; justify-content: space-between; align-items: end; gap: 12px 24px; flex-wrap: wrap; }
+.view-head p { color: var(--muted); max-width: 62ch; margin-top: 4px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* controls */
+button, .btn { font: inherit; font-weight: 500; font-size: 14px; border-radius: 8px; padding: 7px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.08); }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 4px 8px; }
+button.ghost:hover { color: var(--ink); border-color: var(--line); }
+button.danger { color: var(--down); }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; min-width: 0; }
+input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+textarea { font-family: var(--mono); font-size: 12.5px; min-height: 180px; resize: vertical; }
+label.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+label.field > span { display: flex; justify-content: space-between; gap: 8px; }
+.eyebrow { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+/* notices */
+.notice { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px dashed var(--warn); color: var(--ink); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.notice strong { color: var(--warn); }
+.notice .row { margin-left: auto; }
+
+/* stats */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.stat .value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+.stat .sub { font-size: 13px; color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.panel-head .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.swatch { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 880px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* charts */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 6px; padding: 6px 9px; font-size: 12px; line-height: 1.4; white-space: nowrap; transform: translate(-50%, -110%); font-family: var(--mono); }
+.empty { color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center; }
+
+/* allocation */
+.alloc { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; align-items: center; }
+.alloc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.alloc li { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; }
+.alloc li i { width: 10px; height: 10px; border-radius: 3px; }
+
+/* tables */
+.table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+th.n, td.n { text-align: right; }
+tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+td .tkr { font-weight: 600; font-family: var(--mono); }
+td .nm { color: var(--muted); font-size: 12.5px; display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+td input.price { width: 96px; text-align: right; font-family: var(--mono); padding: 4px 8px; }
+th button.sort { all: unset; cursor: pointer; }
+th button.sort:focus-visible { outline: 2px solid var(--accent); }
+th[aria-sort] { color: var(--accent); }
+tfoot td { font-weight: 600; border-bottom: none; }
+
+/* screener */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 13px; padding: 5px 12px; border-radius: 999px; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+/* retirement */
+.plan { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 940px) { .plan { grid-template-columns: minmax(0, 1fr); } }
+.inputs { display: grid; gap: 18px; }
+.inputs fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.inputs fieldset legend { grid-column: 1 / -1; padding: 0; margin-bottom: 8px; }
+.inputs .full { grid-column: 1 / -1; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+.fine { font-size: 13px; color: var(--muted); max-width: 72ch; }
+.glide-note { font-size: 13px; color: var(--muted); }
+
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); padding: 20px; width: min(520px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(10, 18, 26, .45); }
+dialog form { display: grid; gap: 12px; }
+dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+.err { color: var(--down); font-size: 13px; min-height: 1em; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; z-index: 20; }
+@media (max-width: 520px) {
+  .alloc { grid-template-columns: 1fr; justify-items: center; }
+  .alloc ul { width: 100%; }
+  .stat .value { font-size: 21px; }
+}
+@media (prefers-reduced-motion: no-preference) { nav.tabs a, button { transition: background .15s, color .15s, border-color .15s; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#portfolio" aria-label="Glidepath home">
+      <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true">
+        <path d="M2 4 L22 15" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <path d="M2 20 H28" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" fill="none"/>
+        <circle cx="22" cy="15" r="2.6" fill="var(--accent)"/>
+      </svg>
+      Glidepath
+    </a>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#portfolio" data-view="portfolio">Portfolio</a>
+      <a href="#screener" data-view="screener">Screener</a>
+      <a href="#retirement" data-view="retirement">Retirement</a>
+    </nav>
+    <div class="top-actions">
+      <button class="ghost" id="btn-data" type="button">Back up / restore</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- PORTFOLIO -->
+  <section class="view" id="view-portfolio">
+    <div class="view-head">
+      <div>
+        <h1>Portfolio</h1>
+        <p>Your holdings at the prices you last entered. Record a snapshot after each update to build your performance history.</p>
+      </div>
+      <div class="row">
+        <button type="button" id="btn-snapshot">Record today's value</button>
+        <button type="button" class="primary" id="btn-add">Add holding</button>
+      </div>
+    </div>
+    <div class="notice" id="example-notice" hidden>
+      <span><strong>Example portfolio.</strong> These holdings, prices and history are placeholders so you can see how Glidepath works. They are not your figures.</span>
+      <div class="row"><button type="button" id="btn-clear-example">Clear examples and start mine</button></div>
+    </div>
+    <div class="stats" id="pf-stats"></div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Value over time</h2>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--accent)"></i>Market value</span>
+            <span><i class="swatch" style="background:var(--muted)"></i>Cost basis (what you put in)</span>
+          </div>
+        </div>
+        <div class="chart" id="pf-chart"></div>
+      </div>
+      <div class="panel">
+        <h2>Allocation</h2>
+        <div id="pf-alloc"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Holdings</h2><span class="fine">Edit a price in place to revalue the portfolio.</span></div>
+      <div class="table-scroll"><table id="pf-table"></table></div>
+    </div>
+  </section>
+
+  <!-- SCREENER -->
+  <section class="view" id="view-screener" hidden>
+    <div class="view-head">
+      <div>
+        <h1>Stock screener</h1>
+        <p>Filter a universe of stocks by valuation, income, growth and risk. Add a match to your portfolio in one click.</p>
+      </div>
+      <div class="row"><button type="button" id="btn-csv">Load my own data (CSV)</button></div>
+    </div>
+    <div class="notice" id="sample-notice">
+      <span><strong>Sample data.</strong> The bundled figures are rough approximations for demonstration, not live market data. Check current numbers before you act, or load your own export.</span>
+    </div>
+    <div class="panel">
+      <div class="chips" id="presets" aria-label="Preset screens"></div>
+      <div class="filters">
+        <label class="field"><span>Search</span><input id="f-q" type="search" placeholder="Ticker or name"></label>
+        <label class="field"><span>Sector</span><select id="f-sector"></select></label>
+        <label class="field"><span>Min market cap ($B)</span><input id="f-mcap" type="number" min="0" step="10" placeholder="Any"></label>
+        <label class="field"><span>Max P/E</span><input id="f-pe" type="number" min="0" step="1" placeholder="Any"></label>
+        <label class="field"><span>Min dividend yield (%)</span><input id="f-yield" type="number" min="0" step="0.5" placeholder="Any"></label>
+        <label class="field"><span>Min revenue growth (%)</span><input id="f-growth" type="number" step="1" placeholder="Any"></label>
+        <label class="field"><span>Max beta</span><input id="f-beta" type="number" min="0" step="0.1" placeholder="Any"></label>
+        <label class="field"><span>Min net margin (%)</span><input id="f-margin" type="number" step="1" placeholder="Any"></label>
+      </div>
+      <div class="row"><span class="fine" id="sc-count"></span><button type="button" class="ghost" id="btn-reset-filters">Reset filters</button></div>
+    </div>
+    <div class="panel">
+      <div class="table-scroll"><table id="sc-table"></table></div>
+    </div>
+  </section>
+
+  <!-- RETIREMENT -->
+  <section class="view" id="view-retirement" hidden>
+    <div class="view-head">
+      <div>
+        <h1>Retirement plan</h1>
+        <p>Projects your savings through retirement across 2,000 simulated markets. All amounts are in today's dollars, so inflation is already accounted for.</p>
+      </div>
+    </div>
+    <div class="plan">
+      <form class="panel inputs" id="rt-form" autocomplete="off">
+        <fieldset>
+          <legend class="eyebrow">You</legend>
+          <label class="field"><span>Current age</span><input id="r-age" type="number" min="18" max="90"></label>
+          <label class="field"><span>Retire at</span><input id="r-retireAge" type="number" min="30" max="90"></label>
+          <label class="field full"><span>Plan through age</span><input id="r-endAge" type="number" min="60" max="110"></label>
+        </fieldset>
+        <fieldset>
+          <legend class="eyebrow">Saving</legend>
+          <label class="field full"><span>Current savings ($)</span><input id="r-savings" type="number" min="0" step="1000"></label>
+          <label class="check full"><input id="r-usePortfolio" type="checkbox"> Use my portfolio value <span class="mono" id="r-pfval"></span></label>
+          <label class="field"><span>Saved per year ($)</span><input id="r-contrib" type="number" min="0" step="500"></label>
+          <label class="field"><span>Raise savings by (%/yr)</span><input id="r-contribGrowth" type="number" step="0.5"></label>
+        </fieldset>
+        <fieldset>
+          <legend class="eyebrow">Markets and glide path</legend>
+          <label class="field"><span>Return while working (%)</span><input id="r-retPre" type="number" step="0.1"></label>
+          <label class="field"><span>Volatility while working (%)</span><input id="r-volPre" type="number" min="0" step="0.5"></label>
+          <label class="field"><span>Return in retirement (%)</span><input id="r-retPost" type="number" step="0.1"></label>
+          <label class="field"><span>Volatility in retirement (%)</span><input id="r-volPost" type="number" min="0" step="0.5"></label>
+          <label class="field"><span>Start de-risking (yrs before)</span><input id="r-glideYears" type="number" min="0" max="30"></label>
+          <label class="field"><span>Inflation (%)</span><input id="r-inflation" type="number" step="0.1"></label>
+          <p class="glide-note full" id="r-glide-note"></p>
+        </fieldset>
+        <fieldset>
+          <legend class="eyebrow">Retirement income</legend>
+          <label class="field full"><span>Annual spending in retirement ($)</span><input id="r-spending" type="number" min="0" step="1000"></label>
+          <label class="field"><span>Social Security / pension ($/yr)</span><input id="r-other" type="number" min="0" step="1000"></label>
+          <label class="field"><span>Starting at age</span><input id="r-otherAge" type="number" min="50" max="80"></label>
+        </fieldset>
+      </form>
+      <div class="view" style="gap:16px">
+        <div class="stats" id="rt-stats"></div>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Projected savings by age</h2>
+            <div class="legend">
+              <span><i class="swatch" style="background:var(--accent)"></i>Median outcome</span>
+              <span><i class="swatch" style="background:var(--band);height:10px"></i>10th to 90th percentile</span>
+              <span><i class="swatch" style="background:var(--muted)"></i>Steady average return</span>
+            </div>
+          </div>
+          <div class="chart" id="rt-chart"></div>
+        </div>
+        <p class="fine">How this works: each simulated year draws a return from a bell curve centred on your expected return. Expected return and volatility slide from your working-years values to your retirement values over the de-risking window, which is the glide path. Spending is withdrawn at the start of each retirement year. Real markets have fatter tails and runs of bad years, so read the success rate as a guide, not a promise.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- dialogs -->
+<dialog id="dlg-holding" aria-labelledby="dlg-holding-title">
+  <form method="dialog" id="holding-form">
+    <h2 id="dlg-holding-title">Add holding</h2>
+    <div class="grid">
+      <label class="field"><span>Ticker</span><input id="h-ticker" required maxlength="12" placeholder="VTI"></label>
+      <label class="field"><span>Asset class</span>
+        <select id="h-cls">
+          <option>US stocks</option><option>International stocks</option><option>Bonds</option><option>Real estate</option><option>Cash</option><option>Other</option>
+        </select></label>
+      <label class="field" style="grid-column:1/-1"><span>Name (optional)</span><input id="h-name" maxlength="60"></label>
+      <label class="field"><span>Shares</span><input id="h-shares" type="number" step="any" min="0" required></label>
+      <label class="field"><span>Average cost per share ($)</span><input id="h-cost" type="number" step="any" min="0" required></label>
+      <label class="field" style="grid-column:1/-1"><span>Current price ($)</span><input id="h-price" type="number" step="any" min="0" required></label>
+    </div>
+    <p class="err" id="h-err"></p>
+    <div class="actions">
+      <button type="button" id="h-cancel">Cancel</button>
+      <button type="submit" class="primary" id="h-save">Save holding</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-data" aria-labelledby="dlg-data-title">
+  <form method="dialog" id="data-form">
+    <h2 id="dlg-data-title">Back up or restore</h2>
+    <p class="fine">Glidepath keeps your data in this browser only. Copy this text somewhere safe to back it up, or paste a backup here and restore it.</p>
+    <textarea id="data-text" spellcheck="false" aria-label="Backup data"></textarea>
+    <p class="err" id="data-err"></p>
+    <div class="actions">
+      <button type="button" id="data-close">Close</button>
+      <button type="button" id="data-copy">Copy</button>
+      <button type="button" class="primary" id="data-restore">Restore from text</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-csv" aria-labelledby="dlg-csv-title">
+  <form method="dialog" id="csv-form">
+    <h2 id="dlg-csv-title">Load screener data</h2>
+    <p class="fine">Paste CSV with a header row, or choose a file. Recognised columns: ticker, name, sector, mcap (billions), pe, yield, growth, beta, margin (percent values as numbers, e.g. 2.5).</p>
+    <input type="file" id="csv-file" accept=".csv,text/csv">
+    <textarea id="csv-text" spellcheck="false" aria-label="CSV data" placeholder="ticker,name,sector,mcap,pe,yield,growth,beta,margin&#10;ABC,Example Corp,Industrials,42,18.5,2.1,6,0.9,12"></textarea>
+    <p class="err" id="csv-err"></p>
+    <div class="actions">
+      <button type="button" id="csv-sample">Use sample data</button>
+      <button type="button" id="csv-cancel">Cancel</button>
+      <button type="button" class="primary" id="csv-load">Load data</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+const usd2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt$ = v => usd0.format(Math.round(v));
+const fmt$2 = v => usd2.format(v);
+const compact$ = v => {
+  const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e9) return s + "$" + (a / 1e9).toFixed(a >= 1e10 ? 0 : 1) + "B";
+  if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(a >= 1e7 ? 1 : 2).replace(/\.?0+$/, "") + "M";
+  if (a >= 1e3) return s + "$" + Math.round(a / 1e3) + "K";
+  return s + "$" + Math.round(a);
+};
+const signed$ = v => (v >= 0 ? "+" : "−") + fmt$(Math.abs(v));
+const pct = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(d) + "%";
+const cls = v => (v > 0 ? "up" : v < 0 ? "down" : "");
+const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const num = (v, f = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : f; };
+const fmtDate = iso => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", year: "numeric" }); };
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2200);
+}
+
+/* ---------- sample data ---------- */
+const SAMPLE_STOCKS = [
+  // ticker, name, sector, mcap $B, P/E, yield %, 5y revenue growth %, beta, net margin %  (approximate, illustrative)
+  ["AAPL", "Apple", "Technology", 3400, 33, 0.5, 8, 1.2, 24],
+  ["MSFT", "Microsoft", "Technology", 3500, 35, 0.7, 14, 0.9, 36],
+  ["NVDA", "NVIDIA", "Technology", 4000, 50, 0.03, 60, 1.7, 55],
+  ["AVGO", "Broadcom", "Technology", 1500, 90, 0.8, 25, 1.2, 25],
+  ["ORCL", "Oracle", "Technology", 650, 50, 0.7, 9, 1.0, 20],
+  ["GOOGL", "Alphabet", "Communication", 2300, 22, 0.4, 15, 1.0, 29],
+  ["META", "Meta Platforms", "Communication", 1800, 27, 0.3, 18, 1.2, 38],
+  ["VZ", "Verizon", "Communication", 180, 10, 6.3, 1, 0.4, 13],
+  ["T", "AT&T", "Communication", 200, 17, 4.0, -1, 0.6, 9],
+  ["AMZN", "Amazon", "Consumer Discretionary", 2300, 35, 0, 12, 1.2, 10],
+  ["TSLA", "Tesla", "Consumer Discretionary", 1100, 150, 0, 25, 2.1, 7],
+  ["HD", "Home Depot", "Consumer Discretionary", 380, 26, 2.4, 4, 1.0, 10],
+  ["MCD", "McDonald's", "Consumer Discretionary", 220, 26, 2.3, 4, 0.7, 32],
+  ["PG", "Procter & Gamble", "Consumer Staples", 370, 25, 2.6, 4, 0.4, 19],
+  ["KO", "Coca-Cola", "Consumer Staples", 300, 24, 2.9, 5, 0.6, 25],
+  ["PEP", "PepsiCo", "Consumer Staples", 200, 21, 3.8, 5, 0.5, 10],
+  ["WMT", "Walmart", "Consumer Staples", 750, 38, 1.0, 5, 0.5, 3],
+  ["COST", "Costco", "Consumer Staples", 420, 52, 0.5, 9, 0.8, 3],
+  ["BRK.B", "Berkshire Hathaway", "Financials", 1000, 13, 0, 8, 0.8, 18],
+  ["JPM", "JPMorgan Chase", "Financials", 750, 14, 2.0, 12, 1.1, 33],
+  ["V", "Visa", "Financials", 650, 32, 0.7, 11, 0.95, 54],
+  ["JNJ", "Johnson & Johnson", "Health Care", 380, 17, 3.2, 3, 0.5, 20],
+  ["UNH", "UnitedHealth", "Health Care", 300, 15, 2.6, 9, 0.6, 5],
+  ["LLY", "Eli Lilly", "Health Care", 750, 55, 0.7, 15, 0.4, 30],
+  ["ABBV", "AbbVie", "Health Care", 340, 80, 3.2, 6, 0.6, 7],
+  ["XOM", "ExxonMobil", "Energy", 470, 15, 3.5, 6, 0.9, 10],
+  ["CVX", "Chevron", "Energy", 270, 17, 4.4, 5, 1.0, 8],
+  ["NEE", "NextEra Energy", "Utilities", 150, 22, 2.9, 6, 0.6, 25],
+  ["DUK", "Duke Energy", "Utilities", 90, 19, 3.6, 4, 0.5, 15],
+  ["O", "Realty Income", "Real Estate", 52, 50, 5.6, 25, 0.8, 18],
+  ["PLD", "Prologis", "Real Estate", 105, 30, 3.4, 10, 1.1, 35],
+  ["CAT", "Caterpillar", "Industrials", 190, 19, 1.5, 6, 1.1, 19],
+  ["HON", "Honeywell", "Industrials", 140, 24, 2.0, 3, 1.0, 16],
+  ["UNP", "Union Pacific", "Industrials", 140, 21, 2.3, 3, 1.0, 28],
+  ["LIN", "Linde", "Materials", 220, 33, 1.3, 3, 0.9, 20],
+].map(([ticker, name, sector, mcap, pe, yld, growth, beta, margin]) => ({ ticker, name, sector, mcap, pe, yield: yld, growth, beta, margin }));
+
+const EXAMPLE_HOLDINGS = [
+  { ticker: "VTI", name: "Total US stock market ETF", cls: "US stocks", shares: 120, cost: 210, price: 300 },
+  { ticker: "VXUS", name: "Total international stock ETF", cls: "International stocks", shares: 200, cost: 55, price: 68 },
+  { ticker: "BND", name: "Total bond market ETF", cls: "Bonds", shares: 150, cost: 74, price: 73 },
+  { ticker: "AAPL", name: "Apple", cls: "US stocks", shares: 40, cost: 150, price: 230 },
+  { ticker: "MSFT", name: "Microsoft", cls: "US stocks", shares: 25, cost: 280, price: 430 },
+  { ticker: "VNQ", name: "Real estate ETF", cls: "Real estate", shares: 60, cost: 82, price: 90 },
+  { ticker: "CASH", name: "Money market", cls: "Cash", shares: 8000, cost: 1, price: 1 },
+].map(h => ({ id: uid(), ...h }));
+
+function exampleHistory(holdings) {
+  const V = holdings.reduce((s, h) => s + h.shares * h.price, 0);
+  const B = holdings.reduce((s, h) => s + h.shares * h.cost, 0);
+  const n = 18, dep = 1500, out = [], now = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1);
+    const basis = B - (n - 1 - i) * dep;
+    const t = i / (n - 1);
+    const g = 1.06 + (V / B - 1.06) * t + Math.sin(i * 1.3) * 0.025 * (1 - t) - (i === 9 ? 0.05 : 0);
+    out.push({ date: d.toISOString().slice(0, 10), value: i === n - 1 ? V : basis * g, basis });
+  }
+  out[n - 1].date = todayISO();
+  return out;
+}
+
+const RETIRE_DEFAULTS = {
+  age: 35, retireAge: 65, endAge: 92, savings: 120000, usePortfolio: true, contrib: 15000, contribGrowth: 3,
+  retPre: 7, volPre: 15, retPost: 5, volPost: 8, glideYears: 10, inflation: 2.5,
+  spending: 60000, other: 24000, otherAge: 67,
+};
+
+/* ---------- state ---------- */
+const KEY = "glidepath:v1";
+function freshState() {
+  return { holdings: EXAMPLE_HOLDINGS, history: exampleHistory(EXAMPLE_HOLDINGS), example: true, retire: { ...RETIRE_DEFAULTS }, screen: null };
+}
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+  return null;
+}
+function sanitize(s) {
+  if (!s || typeof s !== "object" || !Array.isArray(s.holdings)) throw new Error("This does not look like a Glidepath backup.");
+  return {
+    holdings: s.holdings.map(h => ({ id: h.id || uid(), ticker: String(h.ticker || "?").toUpperCase(), name: String(h.name || ""), cls: String(h.cls || "Other"), shares: num(h.shares), cost: num(h.cost), price: num(h.price) })),
+    history: Array.isArray(s.history) ? s.history.filter(p => p && p.date).map(p => ({ date: String(p.date), value: num(p.value), basis: num(p.basis) })) : [],
+    example: !!s.example,
+    retire: { ...RETIRE_DEFAULTS, ...(s.retire || {}) },
+    screen: Array.isArray(s.screen) ? s.screen : null,
+  };
+}
+let state;
+try { state = sanitize(load()); } catch (e) { state = freshState(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+const totals = () => {
+  const value = state.holdings.reduce((s, h) => s + h.shares * h.price, 0);
+  const basis = state.holdings.reduce((s, h) => s + h.shares * h.cost, 0);
+  return { value, basis, gain: value - basis };
+};
+
+/* ---------- charts ---------- */
+function niceStep(range, count) {
+  const raw = range / Math.max(count, 1), p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f >= 5 ? 10 : f >= 2 ? 5 : f >= 1 ? 2 : 1) * p;
+}
+function svgEl(tag, attrs) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+/** opts: { n, x(i)->label, series:[{ys, color, width, dash}], band:{lo,hi}, markers:[{i,label}], tip(i)->html, height, xTickEvery } */
+function lineChart(host, opts) {
+  host.innerHTML = "";
+  const W = Math.max(280, host.clientWidth || 600), H = opts.height || 280;
+  const m = { l: 58, r: 14, t: 14, b: 28 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const all = [];
+  opts.series.forEach(s => s.ys.forEach(v => all.push(v)));
+  if (opts.band) opts.band.hi.forEach(v => all.push(v));
+  let ymax = Math.max(1, ...all), ymin = Math.min(0, ...all);
+  const step = niceStep(ymax - ymin, 4);
+  ymax = Math.ceil(ymax / step) * step; ymin = Math.floor(ymin / step) * step;
+  const X = i => m.l + (opts.n <= 1 ? iw / 2 : (i / (opts.n - 1)) * iw);
+  const Y = v => m.t + ih - ((v - ymin) / (ymax - ymin)) * ih;
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": opts.label || "Chart" });
+  for (let v = ymin; v <= ymax + step / 2; v += step) {
+    svg.appendChild(svgEl("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1, fill: "none" }));
+    const t = svgEl("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }); t.textContent = compact$(v); svg.appendChild(t);
+  }
+  const every = Math.max(opts.xTickEvery || 1, Math.ceil(opts.n / Math.max(2, Math.floor(iw / (opts.tickPx || 72)))));
+  for (let i = 0; i < opts.n; i += every) {
+    const t = svgEl("text", { x: X(i), y: H - 8, "text-anchor": "middle" }); t.textContent = opts.x(i); svg.appendChild(t);
+  }
+  if (opts.band) {
+    let d = "";
+    opts.band.hi.forEach((v, i) => (d += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1)));
+    for (let i = opts.n - 1; i >= 0; i--) d += "L" + X(i).toFixed(1) + "," + Y(opts.band.lo[i]).toFixed(1);
+    svg.appendChild(svgEl("path", { d: d + "Z", fill: "var(--band)", stroke: "none" }));
+  }
+  (opts.markers || []).forEach(mk => {
+    svg.appendChild(svgEl("line", { x1: X(mk.i), x2: X(mk.i), y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-dasharray": "3 4", "stroke-width": 1, fill: "none" }));
+    const t = svgEl("text", { x: Math.min(X(mk.i) + 6, W - m.r - 4), y: m.t + 12, "text-anchor": X(mk.i) + 80 > W ? "end" : "start" }); t.textContent = mk.label; svg.appendChild(t);
+  });
+  opts.series.forEach(s => {
+    const d = s.ys.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1)).join("");
+    if (s.area) svg.appendChild(svgEl("path", { d: d + `L${X(opts.n - 1)},${Y(ymin)}L${X(0)},${Y(ymin)}Z`, fill: s.color, opacity: .1, stroke: "none" }));
+    svg.appendChild(svgEl("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash || "none", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    if (s.endDot) svg.appendChild(svgEl("circle", { cx: X(opts.n - 1), cy: Y(s.ys[opts.n - 1]), r: 4, fill: s.color }));
+  });
+  const guide = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--ink)", "stroke-width": 1, opacity: 0, fill: "none" });
+  svg.appendChild(guide);
+  const dots = opts.series.map(s => { const c = svgEl("circle", { r: 4, fill: s.color, opacity: 0 }); svg.appendChild(c); return c; });
+  host.appendChild(svg);
+  if (!opts.tip) return;
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; host.appendChild(tip);
+  const move = ev => {
+    const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
+    const i = Math.max(0, Math.min(opts.n - 1, Math.round(((px - m.l) / iw) * (opts.n - 1))));
+    guide.setAttribute("x1", X(i)); guide.setAttribute("x2", X(i)); guide.setAttribute("opacity", .25);
+    opts.series.forEach((s, k) => { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(s.ys[i])); dots[k].setAttribute("opacity", 1); });
+    tip.innerHTML = opts.tip(i); tip.hidden = false;
+    const left = (X(i) / W) * r.width;
+    tip.style.left = Math.max(70, Math.min(r.width - 70, left)) + "px";
+    tip.style.top = (Y(Math.max(...opts.series.map(s => s.ys[i]))) / H) * r.height + "px";
+  };
+  const leave = () => { tip.hidden = true; guide.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); };
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerleave", leave);
+}
+
+function donut(host, parts) {
+  const total = parts.reduce((s, p) => s + p.v, 0);
+  if (!total) { host.innerHTML = '<p class="empty">Add holdings to see your allocation.</p>'; return; }
+  const R = 54, C = 2 * Math.PI * R;
+  let off = 0, arcs = "";
+  parts.forEach(p => {
+    const len = (p.v / total) * C;
+    arcs += `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${p.color}" stroke-width="20" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;
+    off += len;
+  });
+  host.innerHTML = `<div class="alloc">
+    <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Allocation chart">${arcs}
+      <text x="70" y="66" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted)">${parts.length} classes</text>
+      <text x="70" y="84" text-anchor="middle" style="font-family:var(--mono);font-size:15px;fill:var(--ink)">${compact$(total)}</text></svg>
+    <ul>${parts.map(p => `<li><i style="background:${p.color}"></i><span>${esc(p.k)}</span><span class="mono">${((p.v / total) * 100).toFixed(1)}%</span></li>`).join("")}</ul></div>`;
+}
+
+/* ---------- portfolio ---------- */
+const CLASS_COLORS = { "US stocks": "var(--c1)", "International stocks": "var(--c2)", "Bonds": "var(--c3)", "Real estate": "var(--c4)", "Cash": "var(--c6)", "Other": "var(--c5)" };
+let confirmRemove = null;
+
+function renderPortfolio() {
+  const t = totals();
+  $("#example-notice").hidden = !state.example;
+  const hist = state.history.slice().sort((a, b) => a.date.localeCompare(b.date));
+  const first = hist[0];
+  let since = "";
+  if (first && hist.length > 1) {
+    const marketGain = (t.value - first.value) - (t.basis - first.basis);
+    since = `<div class="stat"><span class="eyebrow">Market gain since ${esc(fmtDate(first.date))}</span><span class="value ${cls(marketGain)}">${signed$(marketGain)}</span><span class="sub">Change in value minus new money added</span></div>`;
+  }
+  const top = state.holdings.slice().sort((a, b) => b.shares * b.price - a.shares * a.price)[0];
+  $("#pf-stats").innerHTML = `
+    <div class="stat"><span class="eyebrow">Market value</span><span class="value">${fmt$(t.value)}</span><span class="sub">${state.holdings.length} holdings</span></div>
+    <div class="stat"><span class="eyebrow">Unrealized gain</span><span class="value ${cls(t.gain)}">${signed$(t.gain)}</span><span class="sub ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) + " on cost" : "No cost basis"}</span></div>
+    ${since}
+    <div class="stat"><span class="eyebrow">Largest position</span><span class="value">${top ? esc(top.ticker) : "None"}</span><span class="sub">${top && t.value ? ((top.shares * top.price / t.value) * 100).toFixed(1) + "% of portfolio" : "Add a holding to start"}</span></div>`;
+
+  // chart
+  const host = $("#pf-chart");
+  if (hist.length < 2) {
+    host.innerHTML = `<p class="empty">${hist.length ? "One snapshot recorded. Record another after your next price update and the chart will start." : "No history yet. Enter current prices, then choose “Record today's value”."}</p>`;
+  } else {
+    lineChart(host, {
+      n: hist.length, height: 260, label: "Portfolio value over time",
+      x: i => fmtDate(hist[i].date),
+      series: [
+        { ys: hist.map(p => p.basis), color: "var(--muted)", width: 1.5, dash: "4 4" },
+        { ys: hist.map(p => p.value), color: "var(--accent)", width: 2.25, area: true, endDot: true },
+      ],
+      tip: i => `${esc(hist[i].date)}<br>Value ${fmt$(hist[i].value)}<br>Basis ${fmt$(hist[i].basis)}`,
+    });
+  }
+
+  // allocation
+  const byClass = {};
+  state.holdings.forEach(h => (byClass[h.cls] = (byClass[h.cls] || 0) + h.shares * h.price));
+  donut($("#pf-alloc"), Object.entries(byClass).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ k, v, color: CLASS_COLORS[k] || "var(--c5)" })));
+
+  // table
+  const rows = state.holdings.slice().sort((a, b) => b.shares * b.price - a.shares * a.price);
+  const tbl = $("#pf-table");
+  if (!rows.length) { tbl.innerHTML = `<tbody><tr><td class="empty">No holdings yet. Choose “Add holding” or add one from the screener.</td></tr></tbody>`; return; }
+  tbl.innerHTML = `<thead><tr><th>Holding</th><th>Class</th><th class="n">Shares</th><th class="n">Avg cost</th><th class="n">Price</th><th class="n">Value</th><th class="n">Gain</th><th class="n">Return</th><th class="n">Weight</th><th></th></tr></thead>
+  <tbody>${rows.map(h => {
+    const v = h.shares * h.price, b = h.shares * h.cost, g = v - b;
+    return `<tr data-id="${h.id}">
+      <td><span class="tkr">${esc(h.ticker)}</span>${h.name ? `<span class="nm">${esc(h.name)}</span>` : ""}</td>
+      <td>${esc(h.cls)}</td>
+      <td class="n">${h.shares.toLocaleString("en-US", { maximumFractionDigits: 4 })}</td>
+      <td class="n">${fmt$2(h.cost)}</td>
+      <td class="n"><input class="price" type="number" step="any" min="0" value="${h.price}" aria-label="Price of ${esc(h.ticker)}" id="price-${h.id}"></td>
+      <td class="n">${fmt$(v)}</td>
+      <td class="n ${cls(g)}">${signed$(g)}</td>
+      <td class="n ${cls(g)}">${b ? pct(g / b) : "–"}</td>
+      <td class="n">${t.value ? ((v / t.value) * 100).toFixed(1) + "%" : "–"}</td>
+      <td class="n"><button type="button" class="ghost" data-act="edit">Edit</button><button type="button" class="ghost danger" data-act="remove">${confirmRemove === h.id ? "Confirm remove" : "Remove"}</button></td>
+    </tr>`;
+  }).join("")}</tbody>
+  <tfoot><tr><td>Total</td><td></td><td></td><td></td><td></td><td class="n">${fmt$(t.value)}</td><td class="n ${cls(t.gain)}">${signed$(t.gain)}</td><td class="n ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) : "–"}</td><td class="n">100%</td><td></td></tr></tfoot>`;
+}
+
+$("#pf-table").addEventListener("change", e => {
+  if (!e.target.matches("input.price")) return;
+  const h = state.holdings.find(x => x.id === e.target.closest("tr").dataset.id);
+  if (!h) return;
+  h.price = Math.max(0, num(e.target.value, h.price));
+  save(); renderPortfolio(); renderRetirementIfLinked();
+});
+$("#pf-table").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const id = b.closest("tr").dataset.id;
+  if (b.dataset.act === "edit") return openHolding(state.holdings.find(h => h.id === id));
+  if (confirmRemove !== id) { confirmRemove = id; renderPortfolio(); return; }
+  state.holdings = state.holdings.filter(h => h.id !== id); confirmRemove = null;
+  save(); renderPortfolio(); renderRetirementIfLinked(); toast("Holding removed");
+});
+
+$("#btn-snapshot").addEventListener("click", () => {
+  const t = totals(), d = todayISO();
+  state.history = state.history.filter(p => p.date !== d);
+  state.history.push({ date: d, value: t.value, basis: t.basis });
+  save(); renderPortfolio(); toast(`Recorded ${fmt$(t.value)} for ${d}`);
+});
+
+let clearArmed = false;
+$("#btn-clear-example").addEventListener("click", e => {
+  if (!clearArmed) { clearArmed = true; e.target.textContent = "Confirm: delete example data"; return; }
+  state.holdings = []; state.history = []; state.example = false; clearArmed = false;
+  save(); renderPortfolio(); renderRetirementIfLinked(); toast("Examples cleared");
+});
+
+/* holding dialog */
+const dlgH = $("#dlg-holding");
+let editingId = null;
+function openHolding(h, prefill) {
+  editingId = h ? h.id : null;
+  const src = h || prefill || {};
+  $("#dlg-holding-title").textContent = h ? `Edit ${h.ticker}` : "Add holding";
+  $("#h-ticker").value = src.ticker || ""; $("#h-name").value = src.name || "";
+  $("#h-cls").value = src.cls || "US stocks";
+  $("#h-shares").value = src.shares ?? ""; $("#h-cost").value = src.cost ?? ""; $("#h-price").value = src.price ?? "";
+  $("#h-err").textContent = "";
+  dlgH.showModal();
+  (src.ticker ? $("#h-shares") : $("#h-ticker")).focus();
+}
+$("#btn-add").addEventListener("click", () => openHolding(null));
+$("#h-cancel").addEventListener("click", () => dlgH.close());
+$("#holding-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const ticker = $("#h-ticker").value.trim().toUpperCase();
+  const shares = parseFloat($("#h-shares").value), cost = parseFloat($("#h-cost").value), price = parseFloat($("#h-price").value);
+  if (!ticker) return ($("#h-err").textContent = "Enter a ticker symbol.");
+  if (![shares, cost, price].every(n => Number.isFinite(n) && n >= 0)) return ($("#h-err").textContent = "Shares, cost and price must be zero or more.");
+  const data = { ticker, name: $("#h-name").value.trim(), cls: $("#h-cls").value, shares, cost, price };
+  if (editingId) Object.assign(state.holdings.find(h => h.id === editingId), data);
+  else state.holdings.push({ id: uid(), ...data });
+  save(); dlgH.close(); renderPortfolio(); renderRetirementIfLinked();
+  toast(editingId ? `${ticker} updated` : `${ticker} added`);
+});
+
+/* ---------- screener ---------- */
+const COLS = [
+  { k: "ticker", label: "Ticker" }, { k: "sector", label: "Sector" },
+  { k: "mcap", label: "Mkt cap", n: true, f: v => compact$(v * 1e9) },
+  { k: "pe", label: "P/E", n: true, f: v => (v > 0 ? v.toFixed(1) : "n/m") },
+  { k: "yield", label: "Yield", n: true, f: v => v.toFixed(2) + "%" },
+  { k: "growth", label: "Rev growth", n: true, f: v => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(0) + "%" },
+  { k: "beta", label: "Beta", n: true, f: v => v.toFixed(2) },
+  { k: "margin", label: "Net margin", n: true, f: v => v.toFixed(0) + "%" },
+];
+const PRESETS = [
+  { name: "Dividend income", f: { yield: 2.5, beta: 0.9 } },
+  { name: "Quality growth", f: { growth: 10, margin: 20 } },
+  { name: "Value", f: { pe: 18 } },
+  { name: "Low volatility", f: { beta: 0.7 } },
+  { name: "Mega caps", f: { mcap: 1000 } },
+];
+const FILTER_IDS = { q: "#f-q", sector: "#f-sector", mcap: "#f-mcap", pe: "#f-pe", yield: "#f-yield", growth: "#f-growth", beta: "#f-beta", margin: "#f-margin" };
+let sort = { k: "mcap", dir: -1 }, activePreset = null;
+const universe = () => state.screen || SAMPLE_STOCKS;
+
+function populateSectors() {
+  const sel = $("#f-sector"), cur = sel.value;
+  const sectors = [...new Set(universe().map(s => s.sector).filter(Boolean))].sort();
+  sel.innerHTML = `<option value="">All sectors</option>` + sectors.map(s => `<option>${esc(s)}</option>`).join("");
+  if (sectors.includes(cur)) sel.value = cur;
+}
+function renderPresets() {
+  $("#presets").innerHTML = PRESETS.map((p, i) => `<button type="button" class="chip" data-i="${i}" aria-pressed="${activePreset === i}">${esc(p.name)}</button>`).join("");
+}
+function readFilters() {
+  const g = id => $(id).value.trim();
+  const n = id => (g(id) === "" ? null : parseFloat(g(id)));
+  return { q: g("#f-q").toLowerCase(), sector: g("#f-sector"), mcap: n("#f-mcap"), pe: n("#f-pe"), yield: n("#f-yield"), growth: n("#f-growth"), beta: n("#f-beta"), margin: n("#f-margin") };
+}
+function renderScreener() {
+  $("#sample-notice").hidden = !!state.screen;
+  const f = readFilters();
+  const pass = s =>
+    (!f.q || s.ticker.toLowerCase().includes(f.q) || (s.name || "").toLowerCase().includes(f.q)) &&
+    (!f.sector || s.sector === f.sector) &&
+    (f.mcap == null || s.mcap >= f.mcap) &&
+    (f.pe == null || (s.pe > 0 && s.pe <= f.pe)) &&
+    (f.yield == null || s.yield >= f.yield) &&
+    (f.growth == null || s.growth >= f.growth) &&
+    (f.beta == null || s.beta <= f.beta) &&
+    (f.margin == null || s.margin >= f.margin);
+  const all = universe(), rows = all.filter(pass);
+  rows.sort((a, b) => {
+    const x = a[sort.k], y = b[sort.k];
+    return (typeof x === "string" ? String(x).localeCompare(String(y)) : (x ?? -Infinity) - (y ?? -Infinity)) * sort.dir;
+  });
+  $("#sc-count").textContent = `${rows.length} of ${all.length} stocks match`;
+  const held = new Set(state.holdings.map(h => h.ticker));
+  $("#sc-table").innerHTML = `<thead><tr>${COLS.map(c => `<th class="${c.n ? "n" : ""}" ${sort.k === c.k ? `aria-sort="${sort.dir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" class="sort" data-k="${c.k}">${c.label}${sort.k === c.k ? (sort.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`).join("")}<th></th></tr></thead>
+  <tbody>${rows.length ? rows.map(s => `<tr>
+    <td><span class="tkr">${esc(s.ticker)}</span><span class="nm">${esc(s.name)}</span></td>
+    <td>${esc(s.sector)}</td>
+    ${COLS.slice(2).map(c => `<td class="n">${Number.isFinite(s[c.k]) ? c.f(s[c.k]) : "–"}</td>`).join("")}
+    <td class="n">${held.has(s.ticker) ? `<span class="fine">In portfolio</span>` : `<button type="button" class="ghost" data-add="${esc(s.ticker)}">Add to portfolio</button>`}</td>
+  </tr>`).join("") : `<tr><td colspan="${COLS.length + 1}" class="empty">No stocks pass every filter. Loosen one, or reset filters.</td></tr>`}</tbody>`;
+}
+$("#sc-table").addEventListener("click", e => {
+  const s = e.target.closest("button.sort");
+  if (s) { const k = s.dataset.k; sort = { k, dir: sort.k === k ? -sort.dir : (k === "ticker" || k === "sector" || k === "pe" || k === "beta" ? 1 : -1) }; renderScreener(); return; }
+  const a = e.target.closest("button[data-add]");
+  if (a) {
+    const st = universe().find(x => x.ticker === a.dataset.add);
+    openHolding(null, { ticker: st.ticker, name: st.name, cls: st.sector === "Real Estate" ? "Real estate" : "US stocks" });
+  }
+});
+Object.values(FILTER_IDS).forEach(id => $(id).addEventListener("input", () => { activePreset = null; renderPresets(); renderScreener(); }));
+$("#presets").addEventListener("click", e => {
+  const b = e.target.closest("button.chip"); if (!b) return;
+  const i = +b.dataset.i;
+  Object.entries(FILTER_IDS).forEach(([k, id]) => { if (k !== "q" && k !== "sector") $(id).value = ""; });
+  if (activePreset === i) activePreset = null;
+  else { activePreset = i; Object.entries(PRESETS[i].f).forEach(([k, v]) => ($(FILTER_IDS[k]).value = v)); }
+  renderPresets(); renderScreener();
+});
+$("#btn-reset-filters").addEventListener("click", () => { Object.values(FILTER_IDS).forEach(id => ($(id).value = "")); activePreset = null; renderPresets(); renderScreener(); });
+
+/* CSV */
+function parseCSV(text) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim()));
+}
+const ALIASES = { ticker: ["ticker", "symbol"], name: ["name", "company"], sector: ["sector", "industry"], mcap: ["mcap", "marketcap", "market cap", "market_cap"], pe: ["pe", "p/e", "pe ratio", "pe_ratio"], yield: ["yield", "dividend yield", "div yield", "dividend_yield"], growth: ["growth", "revenue growth", "rev growth", "revenue_growth"], beta: ["beta"], margin: ["margin", "net margin", "net_margin", "profit margin"] };
+function importCSV(text) {
+  const rows = parseCSV(text);
+  if (rows.length < 2) throw new Error("Add a header row and at least one stock.");
+  const head = rows[0].map(h => h.trim().toLowerCase().replace(/[%$()]/g, "").trim());
+  const idx = {};
+  for (const [k, names] of Object.entries(ALIASES)) idx[k] = head.findIndex(h => names.includes(h));
+  if (idx.ticker < 0) throw new Error("The header needs a ‘ticker’ or ‘symbol’ column.");
+  const toNum = v => { const n = parseFloat(String(v ?? "").replace(/[,$%\s]/g, "")); return Number.isFinite(n) ? n : NaN; };
+  return rows.slice(1).map(r => ({
+    ticker: (r[idx.ticker] || "").trim().toUpperCase(), name: idx.name >= 0 ? r[idx.name].trim() : "", sector: idx.sector >= 0 ? r[idx.sector].trim() : "",
+    mcap: toNum(r[idx.mcap]), pe: toNum(r[idx.pe]), yield: toNum(r[idx.yield]), growth: toNum(r[idx.growth]), beta: toNum(r[idx.beta]), margin: toNum(r[idx.margin]),
+  })).filter(s => s.ticker);
+}
+const dlgC = $("#dlg-csv");
+$("#btn-csv").addEventListener("click", () => { $("#csv-err").textContent = ""; dlgC.showModal(); });
+$("#csv-cancel").addEventListener("click", () => dlgC.close());
+$("#csv-file").addEventListener("change", e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => ($("#csv-text").value = r.result); r.readAsText(f);
+});
+$("#csv-load").addEventListener("click", () => {
+  try {
+    const data = importCSV($("#csv-text").value);
+    if (!data.length) throw new Error("No rows with a ticker were found.");
+    state.screen = data; save(); populateSectors(); renderScreener(); dlgC.close(); toast(`Loaded ${data.length} stocks`);
+  } catch (err) { $("#csv-err").textContent = err.message; }
+});
+$("#csv-sample").addEventListener("click", () => { state.screen = null; save(); populateSectors(); renderScreener(); dlgC.close(); toast("Sample data restored"); });
+
+/* ---------- retirement ---------- */
+const R_FIELDS = ["age", "retireAge", "endAge", "savings", "contrib", "contribGrowth", "retPre", "volPre", "retPost", "volPost", "glideYears", "inflation", "spending", "other", "otherAge"];
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function planParams() {
+  const r = state.retire, p = { ...r };
+  if (r.usePortfolio) p.savings = totals().value;
+  p.age = Math.round(Math.min(Math.max(p.age, 18), 100));
+  p.retireAge = Math.round(Math.max(p.retireAge, p.age));
+  p.endAge = Math.round(Math.max(p.endAge, p.retireAge + 1, p.age + 1));
+  return p;
+}
+// expected nominal return and volatility at a given age, sliding along the glide path
+function glideAt(p, age) {
+  const start = p.retireAge - Math.max(0, p.glideYears);
+  const t = age <= start ? 0 : age >= p.retireAge ? 1 : (age - start) / Math.max(1e-9, p.retireAge - start);
+  return { mu: (p.retPre + (p.retPost - p.retPre) * t) / 100, sd: (p.volPre + (p.volPost - p.volPre) * t) / 100 };
+}
+function simulate(p, { runs = 2000, spending = p.spending, collect = true } = {}) {
+  const n = p.endAge - p.age + 1, inf = p.inflation / 100, cg = (1 + p.contribGrowth / 100) / (1 + inf) - 1;
+  const rng = mulberry32(20261101);
+  const cols = collect ? Array.from({ length: n }, () => new Float64Array(runs)) : null;
+  const glide = Array.from({ length: n }, (_, k) => glideAt(p, p.age + k));
+  let ok = 0, spare = null;
+  const gauss = () => { if (spare !== null) { const s = spare; spare = null; return s; } let u = 0; while (u === 0) u = rng(); const v = rng(), m = Math.sqrt(-2 * Math.log(u)); spare = m * Math.sin(2 * Math.PI * v); return m * Math.cos(2 * Math.PI * v); };
+  for (let r = 0; r < runs; r++) {
+    let bal = p.savings, c = p.contrib, alive = true;
+    for (let k = 0; k < n; k++) {
+      const age = p.age + k;
+      if (collect) cols[k][r] = bal;
+      const g = glide[k], real = (1 + g.mu + g.sd * gauss()) / (1 + inf) - 1;
+      if (age < p.retireAge) { bal = bal * (1 + real) + c; c *= 1 + cg; }
+      else {
+        const need = spending - (age >= p.otherAge ? p.other : 0);
+        bal -= need;
+        if (bal < 0) { bal = 0; if (need > 0) alive = false; }
+        bal *= 1 + Math.max(real, -1);
+      }
+    }
+    if (alive) ok++;
+  }
+  const out = { success: ok / runs, n };
+  if (collect) {
+    out.p10 = []; out.p50 = []; out.p90 = [];
+    cols.forEach(col => { col.sort(); out.p10.push(col[Math.floor(runs * .1)]); out.p50.push(col[Math.floor(runs * .5)]); out.p90.push(col[Math.floor(runs * .9)]); });
+  }
+  return out;
+}
+function steady(p) {
+  const inf = p.inflation / 100, cg = (1 + p.contribGrowth / 100) / (1 + inf) - 1, n = p.endAge - p.age + 1, ys = [];
+  let bal = p.savings, c = p.contrib, runsOut = null;
+  for (let k = 0; k < n; k++) {
+    const age = p.age + k; ys.push(bal);
+    const real = (1 + glideAt(p, age).mu) / (1 + inf) - 1;
+    if (age < p.retireAge) { bal = bal * (1 + real) + c; c *= 1 + cg; }
+    else {
+      bal -= p.spending - (age >= p.otherAge ? p.other : 0);
+      if (bal < 0) { bal = 0; if (runsOut === null) runsOut = age; }
+      bal *= 1 + real;
+    }
+  }
+  return { ys, runsOut };
+}
+function sustainableSpending(p, target = 0.85) {
+  let lo = 0, hi = Math.max(p.spending * 3, p.other + 200000);
+  if (simulate(p, { runs: 600, spending: lo, collect: false }).success < target) return 0;
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2;
+    if (simulate(p, { runs: 600, spending: mid, collect: false }).success >= target) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
+function fillRetireForm() {
+  R_FIELDS.forEach(k => ($("#r-" + k).value = state.retire[k]));
+  $("#r-usePortfolio").checked = !!state.retire.usePortfolio;
+}
+function renderRetirement() {
+  const p = planParams();
+  $("#r-savings").disabled = !!state.retire.usePortfolio;
+  if (state.retire.usePortfolio) $("#r-savings").value = Math.round(p.savings);
+  $("#r-pfval").textContent = "(" + fmt$(totals().value) + ")";
+  const startAge = Math.max(p.age, p.retireAge - p.glideYears);
+  $("#r-glide-note").textContent = p.glideYears > 0 && p.retireAge > p.age
+    ? `Glide path: expected return moves from ${p.retPre}% to ${p.retPost}% and volatility from ${p.volPre}% to ${p.volPost}% between ages ${startAge} and ${p.retireAge}.`
+    : `No glide path: returns switch to retirement values at age ${p.retireAge}.`;
+
+  const sim = simulate(p), st = steady(p), sus = sustainableSpending(p);
+  const ri = p.retireAge - p.age, medRetire = sim.p50[ri];
+  const years = p.retireAge - p.age, nominal = medRetire * Math.pow(1 + p.inflation / 100, years);
+  const firstNeed = Math.max(0, p.spending - (p.retireAge >= p.otherAge ? p.other : 0));
+  const wr = medRetire > 0 ? firstNeed / medRetire : Infinity;
+  const s = sim.success;
+  const verdict = s >= .85 ? ["On track", "up"] : s >= .7 ? ["Borderline", "warn"] : ["At risk", "down"];
+  $("#rt-stats").innerHTML = `
+    <div class="stat"><span class="eyebrow">Chance savings last to ${p.endAge}</span><span class="value" style="color:var(--${verdict[1]})">${Math.round(s * 100)}%</span><span class="sub"><span class="pill" style="color:var(--${verdict[1]})">${verdict[0]}</span></span></div>
+    <div class="stat"><span class="eyebrow">Median savings at ${p.retireAge}</span><span class="value">${compact$(medRetire)}</span><span class="sub">About ${compact$(nominal)} in future dollars</span></div>
+    <div class="stat"><span class="eyebrow">Spending you can sustain</span><span class="value">${fmt$(sus)}</span><span class="sub">Per year, with 85% confidence</span></div>
+    <div class="stat"><span class="eyebrow">First-year withdrawal rate</span><span class="value ${wr > .045 ? "down" : wr > .035 ? "" : "up"}">${Number.isFinite(wr) ? (wr * 100).toFixed(1) + "%" : "n/a"}</span><span class="sub">${st.runsOut ? `At average returns, money runs out at ${st.runsOut}` : `At average returns, money lasts past ${p.endAge}`}</span></div>`;
+
+  lineChart($("#rt-chart"), {
+    n: sim.n, height: 300, label: "Projected savings by age",
+    x: i => String(p.age + i), xTickEvery: Math.max(1, Math.ceil(sim.n / 8)),
+    band: { lo: sim.p10, hi: sim.p90 },
+    markers: p.retireAge > p.age ? [{ i: ri, label: "Retire at " + p.retireAge }] : [],
+    series: [
+      { ys: st.ys, color: "var(--muted)", width: 1.5, dash: "4 4" },
+      { ys: sim.p50, color: "var(--accent)", width: 2.5 },
+    ],
+    tip: i => `Age ${p.age + i}<br>Median ${compact$(sim.p50[i])}<br>Range ${compact$(sim.p10[i])} – ${compact$(sim.p90[i])}`,
+  });
+}
+let rtTimer;
+$("#rt-form").addEventListener("input", e => {
+  const id = e.target.id.replace(/^r-/, "");
+  if (id === "usePortfolio") state.retire.usePortfolio = e.target.checked;
+  else if (R_FIELDS.includes(id)) { if (e.target.value === "") return; state.retire[id] = num(e.target.value, state.retire[id]); }
+  save(); clearTimeout(rtTimer); rtTimer = setTimeout(renderRetirement, 180);
+});
+$("#rt-form").addEventListener("submit", e => e.preventDefault());
+function renderRetirementIfLinked() { if (state.retire.usePortfolio && current === "retirement") renderRetirement(); }
+
+/* ---------- backup ---------- */
+const dlgD = $("#dlg-data");
+$("#btn-data").addEventListener("click", () => { $("#data-text").value = JSON.stringify(state, null, 2); $("#data-err").textContent = ""; dlgD.showModal(); });
+$("#data-close").addEventListener("click", () => dlgD.close());
+$("#data-copy").addEventListener("click", () => {
+  const ta = $("#data-text");
+  const fallback = () => { ta.focus(); ta.select(); toast("Selected. Press Ctrl+C or ⌘C to copy"); };
+  try { navigator.clipboard.writeText(ta.value).then(() => toast("Backup copied"), fallback); } catch (e) { fallback(); }
+});
+$("#data-restore").addEventListener("click", () => {
+  try { state = sanitize(JSON.parse($("#data-text").value)); save(); fillRetireForm(); populateSectors(); renderAll(); dlgD.close(); toast("Backup restored"); }
+  catch (err) { $("#data-err").textContent = err instanceof SyntaxError ? "That text is not valid JSON. Paste the full backup." : err.message; }
+});
+
+/* ---------- routing ---------- */
+const VIEWS = ["portfolio", "screener", "retirement"];
+let current = "portfolio";
+function route() {
+  const h = location.hash.slice(1);
+  current = VIEWS.includes(h) ? h : "portfolio";
+  VIEWS.forEach(v => ($("#view-" + v).hidden = v !== current));
+  document.querySelectorAll("nav.tabs a").forEach(a => {
+    if (a.dataset.view === current) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  renderCurrent();
+}
+function renderCurrent() {
+  if (current === "portfolio") renderPortfolio();
+  else if (current === "screener") renderScreener();
+  else renderRetirement();
+}
+function renderAll() { renderCurrent(); }
+window.addEventListener("hashchange", route);
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (current !== "screener") renderCurrent(); }, 150); });
+
+fillRetireForm(); populateSectors(); renderPresets(); route();
+})();
+</script>
+</body>
+</html>
