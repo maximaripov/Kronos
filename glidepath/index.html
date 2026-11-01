@@ -7,195 +7,242 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap">
 <style>
-/* Layout: sticky instrument bar + three hash-routed views; summary figures first, detail below. */
+/* Layout: fixed sidebar (bottom tab bar on phones) + soft white cards on a warm grey ground; the money figure leads each view. */
 :root {
-  --bg: #F1F4F7; --surface: #FFFFFF; --ink: #13202C; --muted: #5A6876; --line: #D9E0E7;
-  --accent: #1C5B87; --accent-soft: #E1ECF5; --up: #1D7A4E; --down: #B13A3A; --warn: #946400;
-  --band: rgba(28, 91, 135, .16); --grid: #E7ECF1;
-  --c1: #1C5B87; --c2: #3E9C8F; --c3: #C08A2E; --c4: #8A5BB0; --c5: #C2575B; --c6: #7A8794;
-  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --bg: #F6F5F2; --surface: #FFFFFF; --sunken: #F1EFEB; --ink: #1E2027; --muted: #6C717D; --line: #EAE7E1;
+  --accent: #EC6531; --accent-ink: #C2491A; --accent-soft: #FCEEE6; --btn: #D9581F; --on-accent: #FFFFFF;
+  --up: #17905D; --up-soft: #E3F4EC; --down: #DC3F45; --down-soft: #FCE8E8; --warn: #A86B12; --warn-soft: #FBF1DE;
+  --band: rgba(236, 101, 49, .14); --grid: #EFEDE8; --overlay: rgba(25, 22, 18, .42);
+  --shadow: 0 1px 2px rgba(30, 25, 15, .04), 0 4px 14px rgba(30, 25, 15, .04);
+  --c1: #4A7CF0; --c2: #EC6531; --c3: #22A98C; --c4: #9B6BE6; --c5: #EDAA2E; --c6: #9AA0AB;
+  --font: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --side: 236px; --tabbar: 64px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0D141B; --surface: #141D26; --ink: #E4EAF0; --muted: #94A2B0; --line: #253240;
-  --accent: #72B4E2; --accent-soft: #19304A; --up: #4FC38C; --down: #EB7A7A; --warn: #E0B04A;
-  --band: rgba(114, 180, 226, .2); --grid: #1D2833;
-  --c1: #72B4E2; --c2: #5CC2B2; --c3: #E0B04A; --c4: #B58ADA; --c5: #EB7A7A; --c6: #8C99A6;
+  --bg: #0D1220; --surface: #161C2C; --sunken: #111727; --ink: #EDEFF5; --muted: #959CAD; --line: #252D40;
+  --accent: #FF7D4A; --accent-ink: #FF946A; --accent-soft: #33221F; --btn: #E8622C; --on-accent: #FFFFFF;
+  --up: #3FCB8E; --up-soft: #163128; --down: #FF6D72; --down-soft: #3A1E25; --warn: #F0B54A; --warn-soft: #33291A;
+  --band: rgba(255, 125, 74, .18); --grid: #1F2638; --overlay: rgba(3, 6, 14, .6);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .18);
+  --c1: #6E97FF; --c2: #FF7D4A; --c3: #3CC6A6; --c4: #B38BFF; --c5: #F4BC4F; --c6: #8A92A3;
   color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #0D141B; --surface: #141D26; --ink: #E4EAF0; --muted: #94A2B0; --line: #253240;
-  --accent: #72B4E2; --accent-soft: #19304A; --up: #4FC38C; --down: #EB7A7A; --warn: #E0B04A;
-  --band: rgba(114, 180, 226, .2); --grid: #1D2833;
-  --c1: #72B4E2; --c2: #5CC2B2; --c3: #E0B04A; --c4: #B58ADA; --c5: #EB7A7A; --c6: #8C99A6;
+  --bg: #0D1220; --surface: #161C2C; --sunken: #111727; --ink: #EDEFF5; --muted: #959CAD; --line: #252D40;
+  --accent: #FF7D4A; --accent-ink: #FF946A; --accent-soft: #33221F; --btn: #E8622C; --on-accent: #FFFFFF;
+  --up: #3FCB8E; --up-soft: #163128; --down: #FF6D72; --down-soft: #3A1E25; --warn: #F0B54A; --warn-soft: #33291A;
+  --band: rgba(255, 125, 74, .18); --grid: #1F2638; --overlay: rgba(3, 6, 14, .6);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 6px 18px rgba(0, 0, 0, .18);
+  --c1: #6E97FF; --c2: #FF7D4A; --c3: #3CC6A6; --c4: #B38BFF; --c5: #F4BC4F; --c6: #8A92A3;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.num, td.n, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
-h1 { font-size: clamp(26px, 3.2vw, 34px); font-weight: 700; }
-h2 { font-size: 18px; font-weight: 600; }
+html, body { background: var(--bg); }
+body { margin: 0; color: var(--ink); font: 15px/1.5 var(--font); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+h1, h2 { text-wrap: balance; margin: 0; letter-spacing: -.015em; }
+h1 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 700; }
+h2 { font-size: 17px; font-weight: 650; }
 p { margin: 0; }
-a { color: var(--accent); }
+a { color: var(--accent-ink); }
+code { font-family: var(--mono); font-size: .86em; background: var(--sunken); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; color: var(--ink); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* top bar */
-header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
-header.top .wrap { display: flex; align-items: center; gap: 12px 28px; flex-wrap: wrap; padding-block: 10px; }
-.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 21px; color: var(--ink); text-decoration: none; }
-.brand svg { display: block; }
-nav.tabs { display: flex; gap: 2px; flex-wrap: wrap; }
-nav.tabs a { padding: 7px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-weight: 500; }
-nav.tabs a:hover { color: var(--ink); }
-nav.tabs a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
-.top-actions { margin-left: auto; display: flex; gap: 8px; }
+/* app shell */
+.app { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); min-height: 100vh; }
+.side { position: sticky; top: env(safe-area-inset-top, 0px); height: calc(100vh - env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; gap: 22px; padding: 22px 14px 18px max(14px, env(safe-area-inset-left, 0px)); background: var(--surface); border-right: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; font-weight: 800; font-size: 20px; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
+.brand .mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; flex: none; }
+.brand .mark svg { display: block; }
+nav.tabs { display: grid; gap: 2px; }
+nav.tabs a { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; color: var(--muted); text-decoration: none; font-weight: 550; font-size: 15px; }
+nav.tabs a svg { width: 20px; height: 20px; flex: none; }
+nav.tabs a:hover { background: var(--sunken); color: var(--ink); }
+nav.tabs a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); }
+.side-foot { margin-top: auto; display: grid; gap: 8px; padding: 0 4px; }
+.side-foot button { justify-content: flex-start; }
+.mtop { display: none; }
+.main { min-width: 0; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 30px 72px; }
+@media (min-width: 861px) { .wrap { padding-left: 32px; padding-right: max(32px, env(safe-area-inset-right, 0px)); } }
 
-main { padding-block: 28px 64px; }
-.view { display: grid; gap: 20px; }
-.view-head { display: flex; justify-content: space-between; align-items: end; gap: 12px 24px; flex-wrap: wrap; }
-.view-head p { color: var(--muted); max-width: 62ch; margin-top: 4px; }
+@media (max-width: 860px) {
+  .app { display: block; }
+  .mtop { display: flex; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; align-items: center; justify-content: space-between; gap: 12px; background: var(--surface); border-bottom: 1px solid var(--line); padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .mtop .brand { padding: 0; font-size: 18px; }
+  .mtop .brand .mark { width: 26px; height: 26px; border-radius: 8px; }
+  .side { position: fixed; inset: auto 0 0 0; top: auto; height: auto; z-index: 25; flex-direction: row; padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); border-right: 0; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0, 0, 0, .05); }
+  .side .brand, .side-foot { display: none; }
+  nav.tabs { grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
+  nav.tabs a { flex-direction: column; gap: 3px; font-size: 11.5px; padding: 6px 4px; justify-content: center; }
+  nav.tabs a[aria-current="page"] { background: transparent; }
+  nav.tabs a[aria-current="page"] svg { background: var(--accent-soft); border-radius: 999px; box-sizing: content-box; padding: 3px 14px; margin-block: -3px; }
+  .wrap { padding-block: 20px calc(var(--tabbar) + 40px + env(safe-area-inset-bottom, 0px)); }
+}
+
+.view { display: grid; gap: 18px; }
+.view-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 24px; flex-wrap: wrap; }
+.view-head p { color: var(--muted); max-width: 64ch; margin-top: 4px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
 /* controls */
-button, .btn { font: inherit; font-weight: 500; font-size: 14px; border-radius: 8px; padding: 7px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
-button:hover { border-color: var(--muted); }
-button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
-button.primary:hover { filter: brightness(1.08); }
-button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 4px 8px; }
-button.ghost:hover { color: var(--ink); border-color: var(--line); }
+button, .btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 10px; padding: 8px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; line-height: 1.3; }
+button:hover { background: var(--sunken); }
+button:disabled { opacity: .55; cursor: default; }
+button.primary { background: var(--btn); color: var(--on-accent); border-color: transparent; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+button.primary:hover { background: var(--btn); filter: brightness(1.07); }
+button.ghost { background: transparent; border-color: transparent; color: var(--muted); padding: 5px 9px; font-weight: 550; }
+button.ghost:hover { color: var(--ink); background: var(--sunken); }
 button.danger { color: var(--down); }
-input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; min-width: 0; }
-input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; width: 100%; min-width: 0; }
+input:hover, select:hover { border-color: color-mix(in srgb, var(--muted) 45%, var(--line)); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input:disabled { background: var(--sunken); color: var(--muted); }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--btn); box-shadow: none; }
 textarea { font-family: var(--mono); font-size: 12.5px; min-height: 180px; resize: vertical; }
-label.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+label.field { display: grid; grid-template-rows: 1fr auto; align-items: end; gap: 5px; font-size: 13px; color: var(--muted); font-weight: 500; }
 label.field > span { display: flex; justify-content: space-between; gap: 8px; }
-.eyebrow { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.eyebrow { font-size: 13px; color: var(--muted); font-weight: 550; }
 
 /* notices */
-.notice { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px dashed var(--warn); color: var(--ink); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.notice { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--ink); background: var(--warn-soft); border-radius: 12px; padding: 12px 16px; font-size: 14px; }
 .notice strong { color: var(--warn); }
-.live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.live.on i { background: var(--up); box-shadow: 0 0 0 3px color-mix(in srgb, var(--up) 22%, transparent); }
-.live code { font-family: var(--mono); font-size: 12px; background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; color: var(--ink); }
 .notice .row { margin-left: auto; }
+.live { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.live.on i { background: var(--up); box-shadow: 0 0 0 3px var(--up-soft); }
 
-/* stats */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
-.stat .value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
-.stat .sub { font-size: 13px; color: var(--muted); }
-.up { color: var(--up); } .down { color: var(--down); }
-.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
-
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
-.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* cards */
+.panel, .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); min-width: 0; }
+.panel { padding: 18px 20px; display: grid; gap: 14px; align-content: start; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
 .panel-head .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
 .swatch { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.stat { padding: 16px 18px; display: grid; gap: 4px; align-content: start; }
+.stat .value { font-size: 24px; font-weight: 700; letter-spacing: -.02em; }
+.stat .sub { font-size: 13px; color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 650; padding: 3px 10px; border-radius: 999px; background: var(--sunken); }
+.pill.up { background: var(--up-soft); } .pill.down { background: var(--down-soft); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
 .grid-2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
-@media (max-width: 880px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1020px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* portfolio hero */
+.hero { gap: 6px; }
+.hero-head { display: grid; gap: 6px; }
+.hero-value { font-size: clamp(32px, 4.4vw, 44px); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+.hero-meta { display: flex; gap: 8px 10px; align-items: center; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); }
 
 /* charts */
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; overflow: visible; }
-.chart text { fill: var(--muted); font-family: var(--mono); font-size: 11px; }
-.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); border-radius: 6px; padding: 6px 9px; font-size: 12px; line-height: 1.4; white-space: nowrap; transform: translate(-50%, -110%); font-family: var(--mono); }
-.empty { color: var(--muted); font-size: 14px; padding: 24px 0; text-align: center; }
+.chart text { fill: var(--muted); font-family: var(--font); font-size: 11.5px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 10px; padding: 7px 10px; font-size: 12.5px; line-height: 1.45; white-space: nowrap; transform: translate(-50%, -112%); }
+.empty { color: var(--muted); font-size: 14px; padding: 28px 0; text-align: center; }
 
 /* allocation */
-.alloc { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; align-items: center; }
-.alloc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
-.alloc li { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; }
-.alloc li i { width: 10px; height: 10px; border-radius: 3px; }
+.alloc { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 18px; align-items: center; }
+.alloc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 14px; }
+.alloc li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: center; }
+.alloc li i { width: 10px; height: 10px; border-radius: 50%; }
+.alloc li span:last-child { font-weight: 600; }
 
 /* tables */
-.table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+.table-scroll { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+th, td { padding: 11px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12.5px; font-weight: 600; color: var(--muted); background: var(--surface); }
 th.n, td.n { text-align: right; }
-tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
-td .tkr { font-weight: 600; font-family: var(--mono); }
-td .nm { color: var(--muted); font-size: 12.5px; display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-td input.price { width: 96px; text-align: right; font-family: var(--mono); padding: 4px 8px; }
+tbody tr:hover { background: var(--sunken); }
+tbody tr:last-child td { border-bottom: 0; }
+td .tkr { font-weight: 700; }
+td .nm { color: var(--muted); font-size: 12.5px; display: block; max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+td input.price { width: 100px; text-align: right; padding: 5px 9px; }
 th button.sort { all: unset; cursor: pointer; }
 th button.sort:focus-visible { outline: 2px solid var(--accent); }
-th[aria-sort] { color: var(--accent); }
-tfoot td { font-weight: 600; border-bottom: none; }
+th[aria-sort] { color: var(--accent-ink); }
+tfoot td { font-weight: 700; border-top: 1px solid var(--line); border-bottom: none; }
 
 /* screener */
-.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { font-size: 13px; padding: 5px 12px; border-radius: 999px; }
-.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 13px; padding: 6px 14px; border-radius: 999px; font-weight: 550; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
 
 /* retirement */
-.plan { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 940px) { .plan { grid-template-columns: minmax(0, 1fr); } }
-.inputs { display: grid; gap: 18px; }
+.plan { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1080px) { .plan { grid-template-columns: minmax(0, 1fr); } }
+.inputs { display: grid; gap: 20px; }
 .inputs fieldset { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.inputs fieldset legend { grid-column: 1 / -1; padding: 0; margin-bottom: 8px; }
+.inputs fieldset legend { grid-column: 1 / -1; padding: 0; margin-bottom: 10px; font-weight: 700; font-size: 14px; color: var(--ink); }
 .inputs .full { grid-column: 1 / -1; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
 .fine { font-size: 13px; color: var(--muted); max-width: 72ch; }
-.glide-note { font-size: 13px; color: var(--muted); }
+.glide-note { font-size: 13px; color: var(--muted); background: var(--sunken); border-radius: 10px; padding: 9px 11px; }
 
-dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); padding: 20px; width: min(520px, calc(100vw - 32px)); }
-dialog::backdrop { background: rgba(10, 18, 26, .45); }
-dialog form { display: grid; gap: 12px; }
+dialog { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); padding: 22px; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 60px rgba(0, 0, 0, .2); }
+dialog::backdrop { background: var(--overlay); }
+dialog form { display: grid; gap: 14px; }
 dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-dialog.wide { width: min(760px, calc(100vw - 32px)); }
+dialog.wide { width: min(780px, calc(100vw - 32px)); }
 .fc-body { display: grid; gap: 14px; min-height: 120px; }
 .fc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.fc-stats .stat { padding: 10px 12px; }
+.fc-stats .stat { padding: 12px 14px; box-shadow: none; background: var(--sunken); border-color: transparent; }
 .fc-stats .value { font-size: 20px; }
-.record { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; display: grid; gap: 6px; }
-.record.good { border-left-color: var(--up); }
+.record { background: var(--warn-soft); border-radius: 12px; padding: 12px 14px; font-size: 13.5px; display: grid; gap: 6px; }
+.record strong { color: var(--warn); }
+.record.good { background: var(--up-soft); } .record.good strong { color: var(--up); }
 .record dl { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 0; justify-content: start; }
-.record dt { color: var(--muted); } .record dd { margin: 0; font-family: var(--mono); }
+.record dt { color: var(--muted); } .record dd { margin: 0; font-weight: 600; }
 .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; margin-right: 8px; }
 @media (prefers-reduced-motion: no-preference) { .spin { animation: spin .8s linear infinite; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+dialog .actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .err { color: var(--down); font-size: 13px; min-height: 1em; }
-.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; z-index: 20; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 550; z-index: 40; box-shadow: var(--shadow); }
+@media (max-width: 860px) { .toast { bottom: calc(var(--tabbar) + 16px + env(safe-area-inset-bottom, 0px)); } }
 @media (max-width: 520px) {
   .alloc { grid-template-columns: 1fr; justify-items: center; }
   .alloc ul { width: 100%; }
-  .stat .value { font-size: 21px; }
+  .stat .value { font-size: 20px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat { padding: 14px; }
+  .panel { padding: 16px; }
+  .table-scroll { margin: 0 -16px; padding: 0 16px; }
+  .view-head .row { width: 100%; }
 }
-@media (prefers-reduced-motion: no-preference) { nav.tabs a, button { transition: background .15s, color .15s, border-color .15s; } }
+@media (prefers-reduced-motion: no-preference) { nav.tabs a, button, input, select { transition: background .15s, color .15s, border-color .15s, box-shadow .15s; } }
 </style>
 </head>
 <body>
-<header class="top">
-  <div class="wrap">
-    <a class="brand" href="#portfolio" aria-label="Glidepath home">
-      <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true">
-        <path d="M2 4 L22 15" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-        <path d="M2 20 H28" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" fill="none"/>
-        <circle cx="22" cy="15" r="2.6" fill="var(--accent)"/>
-      </svg>
-      Glidepath
-    </a>
-    <nav class="tabs" aria-label="Sections">
-      <a href="#portfolio" data-view="portfolio">Portfolio</a>
-      <a href="#screener" data-view="screener">Screener</a>
-      <a href="#retirement" data-view="retirement">Retirement</a>
-    </nav>
-    <div class="top-actions">
-      <button class="ghost" id="btn-data" type="button">Back up / restore</button>
-    </div>
+<div class="app">
+<aside class="side">
+  <a class="brand" href="#portfolio" aria-label="Glidepath home">
+    <span class="mark"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 4.5 L12.5 11" stroke="#fff" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M2.5 15 H15.5" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".75"/><circle cx="12.8" cy="11.2" r="2" fill="#fff"/></svg></span>
+    Glidepath
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#portfolio" data-view="portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg>Portfolio</a>
+    <a href="#screener" data-view="screener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/></svg>Screener</a>
+    <a href="#retirement" data-view="retirement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18h16"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 5v3M5.6 8.6l1.8 1.8M18.4 8.6l-1.8 1.8"/></svg>Retirement</a>
+  </nav>
+  <div class="side-foot">
+    <button class="ghost" id="btn-data" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>Back up / restore</button>
   </div>
+</aside>
+<header class="mtop">
+  <a class="brand" href="#portfolio" aria-label="Glidepath home">
+    <span class="mark"><svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 4.5 L12.5 11" stroke="#fff" stroke-width="2.2" stroke-linecap="round" fill="none"/><path d="M2.5 15 H15.5" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".75"/><circle cx="12.8" cy="11.2" r="2" fill="#fff"/></svg></span>
+    Glidepath
+  </a>
+  <button class="ghost" id="btn-data-m" type="button">Back up</button>
 </header>
 
-<main class="wrap">
+<main class="main"><div class="wrap">
   <!-- PORTFOLIO -->
   <section class="view" id="view-portfolio">
     <div class="view-head">
@@ -214,14 +261,13 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
       <span><strong>Example portfolio.</strong> These holdings, prices and history are placeholders so you can see how Glidepath works. They are not your figures.</span>
       <div class="row"><button type="button" id="btn-clear-example">Clear examples and start mine</button></div>
     </div>
-    <div class="stats" id="pf-stats"></div>
     <div class="grid-2">
-      <div class="panel">
+      <div class="panel hero">
         <div class="panel-head">
-          <h2>Value over time</h2>
+          <div class="hero-head" id="pf-hero"></div>
           <div class="legend">
             <span><i class="swatch" style="background:var(--accent)"></i>Market value</span>
-            <span><i class="swatch" style="background:var(--muted)"></i>Cost basis (what you put in)</span>
+            <span><i class="swatch" style="background:var(--muted)"></i>What you put in</span>
           </div>
         </div>
         <div class="chart" id="pf-chart"></div>
@@ -231,6 +277,7 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
         <div id="pf-alloc"></div>
       </div>
     </div>
+    <div class="stats" id="pf-stats"></div>
     <div class="panel">
       <div class="panel-head"><h2>Holdings</h2><span class="fine" id="pf-hint">Edit a price in place to revalue the portfolio.</span></div>
       <div class="table-scroll"><table id="pf-table"></table></div>
@@ -324,7 +371,8 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
       </div>
     </div>
   </section>
-</main>
+</div></main>
+</div>
 
 <!-- dialogs -->
 <dialog id="dlg-holding" aria-labelledby="dlg-holding-title">
@@ -494,6 +542,21 @@ function niceStep(range, count) {
   const raw = range / Math.max(count, 1), p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
   return (f >= 5 ? 10 : f >= 2 ? 5 : f >= 1 ? 2 : 1) * p;
 }
+// Monotone cubic (Fritsch–Carlson): smooth like a spline but never overshoots the data.
+function monotonePath(pts) {
+  const n = pts.length;
+  if (n < 3) return pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join("");
+  const dx = [], m = [], t = new Array(n);
+  for (let i = 0; i < n - 1; i++) { dx.push(pts[i + 1][0] - pts[i][0]); m.push((pts[i + 1][1] - pts[i][1]) / (dx[i] || 1)); }
+  t[0] = m[0]; t[n - 1] = m[n - 2];
+  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (3 * (dx[i - 1] + dx[i])) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
+  let d = "M" + pts[0][0].toFixed(1) + "," + pts[0][1].toFixed(1);
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += `C${(pts[i][0] + h).toFixed(1)},${(pts[i][1] + h * t[i]).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)},${(pts[i + 1][1] - h * t[i + 1]).toFixed(1)} ${pts[i + 1][0].toFixed(1)},${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
+}
 function svgEl(tag, attrs) {
   const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -540,8 +603,16 @@ function lineChart(host, opts) {
   });
   opts.series.forEach(s => {
     let d = "", pen = false;
-    s.ys.forEach((v, i) => { if (!ok(v)) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1); pen = true; });
-    if (s.area) svg.appendChild(svgEl("path", { d: d + `L${X(opts.n - 1)},${Y(ymin)}L${X(0)},${Y(ymin)}Z`, fill: s.color, opacity: .1, stroke: "none" }));
+    if (s.smooth && s.ys.every(ok)) d = monotonePath(s.ys.map((v, i) => [X(i), Y(v)]));
+    else s.ys.forEach((v, i) => { if (!ok(v)) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1); pen = true; });
+    if (s.area) {
+      const gid = "g" + Math.random().toString(36).slice(2, 9);
+      const grad = svgEl("linearGradient", { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
+      const st1 = svgEl("stop", { offset: "0%" }); st1.style.cssText = `stop-color:${s.color};stop-opacity:.28`;
+      const st2 = svgEl("stop", { offset: "100%" }); st2.style.cssText = `stop-color:${s.color};stop-opacity:0`;
+      grad.append(st1, st2); const defs = svgEl("defs", {}); defs.appendChild(grad); svg.appendChild(defs);
+      svg.appendChild(svgEl("path", { d: d + `L${X(opts.n - 1)},${Y(ymin)}L${X(0)},${Y(ymin)}Z`, fill: `url(#${gid})`, stroke: "none" }));
+    }
     svg.appendChild(svgEl("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash || "none", "stroke-linejoin": "round", "stroke-linecap": "round" }));
     if (s.endDot) { let j = opts.n - 1; while (j > 0 && !ok(s.ys[j])) j--; svg.appendChild(svgEl("circle", { cx: X(j), cy: Y(s.ys[j]), r: 4, fill: s.color })); }
   });
@@ -574,13 +645,13 @@ function donut(host, parts) {
   let off = 0, arcs = "";
   parts.forEach(p => {
     const len = (p.v / total) * C;
-    arcs += `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${p.color}" stroke-width="20" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;
+    arcs += `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${p.color}" stroke-width="22" stroke-linecap="butt" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`;
     off += len;
   });
   host.innerHTML = `<div class="alloc">
     <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Allocation chart">${arcs}
-      <text x="70" y="66" text-anchor="middle" style="font-family:var(--mono);font-size:11px;fill:var(--muted)">${parts.length} classes</text>
-      <text x="70" y="84" text-anchor="middle" style="font-family:var(--mono);font-size:15px;fill:var(--ink)">${compact$(total)}</text></svg>
+      <text x="70" y="66" text-anchor="middle" style="font-family:var(--font);font-size:11.5px;fill:var(--muted)">${parts.length} classes</text>
+      <text x="70" y="84" text-anchor="middle" style="font-family:var(--font);font-size:17px;font-weight:700;fill:var(--ink)">${compact$(total)}</text></svg>
     <ul>${parts.map(p => `<li><i style="background:${p.color}"></i><span>${esc(p.k)}</span><span class="mono">${((p.v / total) * 100).toFixed(1)}%</span></li>`).join("")}</ul></div>`;
 }
 
@@ -593,21 +664,23 @@ function renderPortfolio() {
   $("#example-notice").hidden = !state.example;
   const hist = state.history.slice().sort((a, b) => a.date.localeCompare(b.date));
   const first = hist[0];
-  let since = "";
+  let heroMeta = `<span>${state.holdings.length} holdings</span>`;
   if (first && hist.length > 1) {
     const marketGain = (t.value - first.value) - (t.basis - first.basis);
-    since = `<div class="stat"><span class="eyebrow">Market gain since ${esc(fmtDate(first.date))}</span><span class="value ${cls(marketGain)}">${signed$(marketGain)}</span><span class="sub">Change in value minus new money added</span></div>`;
+    const arrow = marketGain >= 0 ? "▲" : "▼";
+    heroMeta = `<span class="pill ${cls(marketGain)}">${arrow} ${fmt$(Math.abs(marketGain))}${first.value ? " (" + pct(marketGain / first.value).replace(/^[+−]/, "") + ")" : ""}</span><span>market gain since ${esc(fmtDate(first.date))}, not counting new money</span>`;
   }
+  $("#pf-hero").innerHTML = `<span class="eyebrow">Portfolio value</span><span class="hero-value">${fmt$(t.value)}</span><div class="hero-meta">${heroMeta}</div>`;
   const priced = state.holdings.filter(h => h.prevClose > 0);
   const dayChg = priced.reduce((s, h) => s + h.shares * (h.price - h.prevClose), 0);
   const dayBase = priced.reduce((s, h) => s + h.shares * h.prevClose, 0);
   const dayStat = priced.length ? `<div class="stat"><span class="eyebrow">Last session</span><span class="value ${cls(dayChg)}">${signed$(dayChg)}</span><span class="sub ${cls(dayChg)}">${dayBase ? pct(dayChg / dayBase, 2) : ""} · ${priced.length} live-priced</span></div>` : "";
   const top = state.holdings.slice().sort((a, b) => b.shares * b.price - a.shares * a.price)[0];
   $("#pf-stats").innerHTML = `
-    <div class="stat"><span class="eyebrow">Market value</span><span class="value">${fmt$(t.value)}</span><span class="sub">${state.holdings.length} holdings</span></div>
     <div class="stat"><span class="eyebrow">Unrealized gain</span><span class="value ${cls(t.gain)}">${signed$(t.gain)}</span><span class="sub ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) + " on cost" : "No cost basis"}</span></div>
-    ${dayStat}${since}
-    <div class="stat"><span class="eyebrow">Largest position</span><span class="value">${top ? esc(top.ticker) : "None"}</span><span class="sub">${top && t.value ? ((top.shares * top.price / t.value) * 100).toFixed(1) + "% of portfolio" : "Add a holding to start"}</span></div>`;
+    ${dayStat}
+    <div class="stat"><span class="eyebrow">Largest position</span><span class="value">${top ? esc(top.ticker) : "None"}</span><span class="sub">${top && t.value ? ((top.shares * top.price / t.value) * 100).toFixed(1) + "% of portfolio" : "Add a holding to start"}</span></div>
+    <div class="stat"><span class="eyebrow">Cost basis</span><span class="value">${fmt$(t.basis)}</span><span class="sub">What you paid for current holdings</span></div>`;
 
   // chart
   const host = $("#pf-chart");
@@ -615,11 +688,11 @@ function renderPortfolio() {
     host.innerHTML = `<p class="empty">${hist.length ? "One snapshot recorded. Record another after your next price update and the chart will start." : "No history yet. Enter current prices, then choose “Record today's value”."}</p>`;
   } else {
     lineChart(host, {
-      n: hist.length, height: 260, label: "Portfolio value over time",
+      n: hist.length, height: 280, label: "Portfolio value over time",
       x: i => fmtDate(hist[i].date),
       series: [
-        { ys: hist.map(p => p.basis), color: "var(--muted)", width: 1.5, dash: "4 4" },
-        { ys: hist.map(p => p.value), color: "var(--accent)", width: 2.25, area: true, endDot: true },
+        { ys: hist.map(p => p.basis), color: "var(--muted)", width: 1.5, dash: "4 4", smooth: true },
+        { ys: hist.map(p => p.value), color: "var(--accent)", width: 2.5, area: true, smooth: true, endDot: true },
       ],
       tip: i => `${esc(hist[i].date)}<br>Value ${fmt$(hist[i].value)}<br>Basis ${fmt$(hist[i].basis)}`,
     });
@@ -719,7 +792,6 @@ const COLS = [
   { k: "ticker", label: "Ticker" }, { k: "sector", label: "Sector" },
   { k: "price", label: "Price", n: true, live: true, f: v => fmt$2(v) },
   { k: "day", label: "Day", n: true, live: true, f: v => pct(v / 100, 2), c: v => cls(v) },
-  { k: "fc", label: "20-day forecast", n: true, live: true, needsFc: true, f: v => pct(v / 100, 1), c: v => cls(v) },
   { k: "mcap", label: "Mkt cap", n: true, f: v => compact$(v * 1e9) },
   { k: "pe", label: "P/E", n: true, f: v => (v > 0 ? v.toFixed(1) : "n/m") },
   { k: "fpe", label: "Fwd P/E", n: true, f: v => (v > 0 ? v.toFixed(1) : "n/m") },
@@ -762,7 +834,7 @@ function renderScreener() {
   if (state.screen) { src.textContent = `Your own data: ${state.screen.length} stocks.`; note.hidden = true; }
   else if (SP500) {
     const age = (Date.now() - Date.parse(SP500.asOf)) / 864e5;
-    src.textContent = `${SP500_ROWS.length} S&P 500 stocks · fundamentals from Yahoo Finance as of ${new Date(SP500.asOf).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${live.ok ? " · prices live" : ""}`;
+    src.textContent = `${SP500_ROWS.length} S&P 500 stocks · fundamentals from Yahoo Finance as of ${new Date(SP500.asOf).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}${live.ok ? (screenLoading ? " · loading live prices…" : " · prices live") : ""}`;
     note.hidden = !(age > 7);
     $("#sample-notice-text").innerHTML = `<strong>Fundamentals are ${Math.floor(age)} days old.</strong> Run the Glidepath server (it refreshes them daily) or <code>python glidepath/sp500.py</code>.`;
   } else {
@@ -958,7 +1030,7 @@ function renderRetirement() {
   const s = sim.success;
   const verdict = s >= .85 ? ["On track", "up"] : s >= .7 ? ["Borderline", "warn"] : ["At risk", "down"];
   $("#rt-stats").innerHTML = `
-    <div class="stat"><span class="eyebrow">Chance savings last to ${p.endAge}</span><span class="value" style="color:var(--${verdict[1]})">${Math.round(s * 100)}%</span><span class="sub"><span class="pill" style="color:var(--${verdict[1]})">${verdict[0]}</span></span></div>
+    <div class="stat"><span class="eyebrow">Chance savings last to ${p.endAge}</span><span class="value" style="color:var(--${verdict[1]})">${Math.round(s * 100)}%</span><span class="sub"><span class="pill ${verdict[1]}" style="color:var(--${verdict[1]})">${verdict[0]}</span></span></div>
     <div class="stat"><span class="eyebrow">Median savings at ${p.retireAge}</span><span class="value">${compact$(medRetire)}</span><span class="sub">About ${compact$(nominal)} in future dollars</span></div>
     <div class="stat"><span class="eyebrow">Spending you can sustain</span><span class="value">${fmt$(sus)}</span><span class="sub">Per year, with 85% confidence</span></div>
     <div class="stat"><span class="eyebrow">First-year withdrawal rate</span><span class="value ${wr > .045 ? "down" : wr > .035 ? "" : "up"}">${Number.isFinite(wr) ? (wr * 100).toFixed(1) + "%" : "n/a"}</span><span class="sub">${st.runsOut ? `At average returns, money runs out at ${st.runsOut}` : `At average returns, money lasts past ${p.endAge}`}</span></div>`;
@@ -987,6 +1059,7 @@ function renderRetirementIfLinked() { if (state.retire.usePortfolio && current =
 
 /* ---------- backup ---------- */
 const dlgD = $("#dlg-data");
+$("#btn-data-m").addEventListener("click", () => $("#btn-data").click());
 $("#btn-data").addEventListener("click", () => { $("#data-text").value = JSON.stringify(state, null, 2); $("#data-err").textContent = ""; dlgD.showModal(); });
 $("#data-close").addEventListener("click", () => dlgD.close());
 $("#data-copy").addEventListener("click", () => {
@@ -1002,16 +1075,17 @@ $("#data-restore").addEventListener("click", () => {
 /* ---------- live prices ---------- */
 // Live quotes need the bundled server (python glidepath/server.py). Opened any other way, prices stay manual.
 const live = { ok: false, busy: false, forecast: false };
-let screenQuotes = {}, screenQuotesAt = 0;
+let screenQuotes = {}, screenQuotesAt = 0, screenLoading = false;
 const isPricedLive = h => h.cls !== "Cash" && h.ticker !== "CASH";
 async function getQuotes(symbols) {
-  const out = {};
-  for (let i = 0; i < symbols.length; i += 100) {
-    const r = await fetch("api/quotes?symbols=" + encodeURIComponent(symbols.slice(i, i + 100).join(",")), { cache: "no-store" });
+  const chunks = [];
+  for (let i = 0; i < symbols.length; i += 150) chunks.push(symbols.slice(i, i + 150));
+  const parts = await Promise.all(chunks.map(async c => {
+    const r = await fetch("api/quotes?symbols=" + encodeURIComponent(c.join(",")), { cache: "no-store" });
     if (!r.ok) throw new Error("Quote server answered " + r.status);
-    Object.assign(out, (await r.json()).quotes);
-  }
-  return out;
+    return (await r.json()).quotes;
+  }));
+  return Object.assign({}, ...parts);
 }
 function renderLiveStatus() {
   const el = $("#live-status");
@@ -1060,9 +1134,10 @@ async function refreshPrices({ quiet = false } = {}) {
 }
 async function loadScreenQuotes() {
   if (!live.ok || Date.now() - screenQuotesAt < 5 * 60e3) return;
-  screenQuotesAt = Date.now();
+  screenQuotesAt = Date.now(); screenLoading = true; if (current === "screener") renderScreener();
   try { screenQuotes = await getQuotes((state.screen || SP500_ROWS).map(s => s.ticker)); }
   catch (e) { screenQuotesAt = 0; }
+  screenLoading = false;
   if (current === "screener") renderScreener();
 }
 async function detectLive() {

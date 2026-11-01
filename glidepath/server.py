@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent
 YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{}?range=5d&interval=1d"
 UA = "Mozilla/5.0 (Glidepath personal portfolio tracker)"
 CACHE_TTL = 60  # seconds
-MAX_SYMBOLS = 100
+MAX_SYMBOLS = 150
 MODEL_SIZE, LOOKBACK = "small", 120  # set from backtest results; see forecast_backtest.json
 SYMBOL_RE = re.compile(r"^[A-Z0-9.\-^=]{1,15}$")
 
