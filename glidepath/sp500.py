@@ -27,7 +27,8 @@ OUT = Path(__file__).resolve().parent / "sp500.js"
 def constituents():
     req = urllib.request.Request(CONSTITUENTS, headers={"User-Agent": yahoo.UA})
     text = urllib.request.urlopen(req, timeout=20).read().decode()
-    rows = [(r["Symbol"].strip().upper(), r["Security"].strip(), r["GICS Sector"].strip()) for r in csv.DictReader(io.StringIO(text))]
+    tidy = lambda n: "The " + n[:-6] if n.endswith(" (The)") else n
+    rows = [(r["Symbol"].strip().upper(), tidy(r["Security"].strip()), r["GICS Sector"].strip()) for r in csv.DictReader(io.StringIO(text))]
     if len(rows) < 480:
         raise RuntimeError(f"Constituent list looks incomplete ({len(rows)} rows)")
     return rows
@@ -51,7 +52,7 @@ def _one(row):
 
 def build(verbose=True):
     rows = constituents()
-    with ThreadPoolExecutor(max_workers=6) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         out = list(ex.map(_one, rows))
     missing = sum(1 for r in out if r[3] is None)
     if missing > len(out) * 0.2:

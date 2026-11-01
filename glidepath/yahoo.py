@@ -12,7 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+UA = "Mozilla/5.0"  # a full browser string without browser headers gets rate-limited
 _lock = threading.Lock()
 _opener = None
 _crumb = None

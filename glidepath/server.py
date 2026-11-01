@@ -30,7 +30,9 @@ SYMBOL_RE = re.compile(r"^[A-Z0-9.\-^=]{1,15}$")
 _cache = {}
 _lock = threading.Lock()
 
-import forecast as kronos_forecast  # noqa: E402  (stdlib-only at import; heavy deps load on first forecast)
+import forecast as kronos_forecast  # noqa: E402
+import sp500  # noqa: E402
+import yahoo  # noqa: E402  (stdlib-only at import; heavy deps load on first forecast)
 
 FORECAST_OK = kronos_forecast.dependencies_available()
 _forecaster = None
@@ -100,6 +102,39 @@ def fetch_quote(sym):
     return out
 
 
+def get_quotes(syms):
+    """Batch quotes through Yahoo's quote endpoint; per-symbol chart lookups for anything it misses."""
+    now = time.time()
+    with _lock:
+        out = {s: _cache[s][1] for s in syms if s in _cache and now - _cache[s][0] < CACHE_TTL}
+    todo = [s for s in syms if s not in out]
+    if todo:
+        try:
+            got = yahoo.quotes(todo)
+        except Exception:
+            got = {}
+        with _lock:
+            for s, q in got.items():
+                _cache[s] = (now, q)
+        out.update(got)
+        missing = [s for s in todo if s not in got]
+        if missing:
+            with ThreadPoolExecutor(max_workers=6) as ex:
+                out.update(zip(missing, ex.map(fetch_quote, missing)))
+    return out
+
+
+def refresh_sp500_if_stale():
+    path = ROOT / "sp500.js"
+    if path.exists() and time.time() - path.stat().st_mtime < 86400:
+        return
+    try:
+        sp500.build(verbose=False)
+        print("Refreshed S&P 500 fundamentals")
+    except Exception as e:
+        print("S&P 500 refresh skipped:", e)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(ROOT), **kw)
@@ -145,8 +180,7 @@ class Handler(SimpleHTTPRequestHandler):
             bad = [s for s in syms if not SYMBOL_RE.match(s)]
             if not syms or bad or len(syms) > MAX_SYMBOLS:
                 return self._json(400, {"error": f"Pass 1-{MAX_SYMBOLS} valid symbols, comma-separated."})
-            with ThreadPoolExecutor(max_workers=8) as ex:
-                quotes = dict(zip(syms, ex.map(fetch_quote, syms)))
+            quotes = get_quotes(syms)
             return self._json(200, {"quotes": quotes, "asOf": int(time.time())})
         if u.path == "/":
             self.path = "/index.html"
@@ -165,6 +199,7 @@ def main():
     LOOKBACK = a.lookback or LOOKBACK
     print("Forecasts:", f"Kronos-{MODEL_SIZE}, {LOOKBACK}-day lookback" if FORECAST_OK else "off (pip install -r requirements.txt to enable)")
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
+    threading.Thread(target=refresh_sp500_if_stale, daemon=True).start()
     print(f"Glidepath running at http://{a.host}:{a.port}  (Ctrl+C to stop)")
     try:
         srv.serve_forever()
