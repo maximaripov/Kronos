@@ -150,6 +150,18 @@ dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--s
 dialog::backdrop { background: rgba(10, 18, 26, .45); }
 dialog form { display: grid; gap: 12px; }
 dialog .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+dialog.wide { width: min(760px, calc(100vw - 32px)); }
+.fc-body { display: grid; gap: 14px; min-height: 120px; }
+.fc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.fc-stats .stat { padding: 10px 12px; }
+.fc-stats .value { font-size: 20px; }
+.record { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; display: grid; gap: 6px; }
+.record.good { border-left-color: var(--up); }
+.record dl { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 0; justify-content: start; }
+.record dt { color: var(--muted); } .record dd { margin: 0; font-family: var(--mono); }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; margin-right: 8px; }
+@media (prefers-reduced-motion: no-preference) { .spin { animation: spin .8s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
 dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
 .err { color: var(--down); font-size: 13px; min-height: 1em; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 14px; z-index: 20; }
@@ -367,6 +379,16 @@ dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
   </form>
 </dialog>
 
+<dialog id="dlg-forecast" class="wide" aria-labelledby="fc-title">
+  <form method="dialog" class="fc-body">
+    <div class="panel-head">
+      <div><h2 id="fc-title">Forecast</h2><p class="fine" id="fc-sub"></p></div>
+      <button type="submit" class="ghost">Close</button>
+    </div>
+    <div id="fc-content"></div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" hidden role="status"></div>
 
 <script>
@@ -519,9 +541,13 @@ function lineChart(host, opts) {
   const m = { l: 58, r: 14, t: 14, b: 28 };
   const iw = W - m.l - m.r, ih = H - m.t - m.b;
   const all = [];
-  opts.series.forEach(s => s.ys.forEach(v => all.push(v)));
-  if (opts.band) opts.band.hi.forEach(v => all.push(v));
-  let ymax = Math.max(1, ...all), ymin = Math.min(0, ...all);
+  const ok = v => v != null && Number.isFinite(v);
+  opts.series.forEach(s => s.ys.forEach(v => ok(v) && all.push(v)));
+  if (opts.band) { opts.band.hi.forEach(v => ok(v) && all.push(v)); opts.band.lo.forEach(v => ok(v) && all.push(v)); }
+  const yFmt = opts.yFmt || compact$;
+  let ymax = Math.max(...all), ymin = Math.min(...all);
+  if (opts.zero !== false) { ymax = Math.max(1, ymax); ymin = Math.min(0, ymin); }
+  else { const pad = (ymax - ymin) * 0.06 || ymax * 0.05 || 1; ymax += pad; ymin = Math.max(0, ymin - pad); }
   const step = niceStep(ymax - ymin, 4);
   ymax = Math.ceil(ymax / step) * step; ymin = Math.floor(ymin / step) * step;
   const X = i => m.l + (opts.n <= 1 ? iw / 2 : (i / (opts.n - 1)) * iw);
@@ -529,27 +555,30 @@ function lineChart(host, opts) {
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": opts.label || "Chart" });
   for (let v = ymin; v <= ymax + step / 2; v += step) {
     svg.appendChild(svgEl("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1, fill: "none" }));
-    const t = svgEl("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }); t.textContent = compact$(v); svg.appendChild(t);
+    const t = svgEl("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }); t.textContent = yFmt(v); svg.appendChild(t);
   }
   const every = Math.max(opts.xTickEvery || 1, Math.ceil(opts.n / Math.max(2, Math.floor(iw / (opts.tickPx || 72)))));
   for (let i = 0; i < opts.n; i += every) {
     const t = svgEl("text", { x: X(i), y: H - 8, "text-anchor": "middle" }); t.textContent = opts.x(i); svg.appendChild(t);
   }
   if (opts.band) {
-    let d = "";
-    opts.band.hi.forEach((v, i) => (d += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1)));
-    for (let i = opts.n - 1; i >= 0; i--) d += "L" + X(i).toFixed(1) + "," + Y(opts.band.lo[i]).toFixed(1);
-    svg.appendChild(svgEl("path", { d: d + "Z", fill: "var(--band)", stroke: "none" }));
+    const idx = opts.band.hi.map((v, i) => (ok(v) && ok(opts.band.lo[i]) ? i : -1)).filter(i => i >= 0);
+    if (idx.length > 1) {
+      let d = idx.map((i, k) => (k ? "L" : "M") + X(i).toFixed(1) + "," + Y(opts.band.hi[i]).toFixed(1)).join("");
+      for (let k = idx.length - 1; k >= 0; k--) d += "L" + X(idx[k]).toFixed(1) + "," + Y(opts.band.lo[idx[k]]).toFixed(1);
+      svg.appendChild(svgEl("path", { d: d + "Z", fill: "var(--band)", stroke: "none" }));
+    }
   }
   (opts.markers || []).forEach(mk => {
     svg.appendChild(svgEl("line", { x1: X(mk.i), x2: X(mk.i), y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-dasharray": "3 4", "stroke-width": 1, fill: "none" }));
     const t = svgEl("text", { x: Math.min(X(mk.i) + 6, W - m.r - 4), y: m.t + 12, "text-anchor": X(mk.i) + 80 > W ? "end" : "start" }); t.textContent = mk.label; svg.appendChild(t);
   });
   opts.series.forEach(s => {
-    const d = s.ys.map((v, i) => (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1)).join("");
+    let d = "", pen = false;
+    s.ys.forEach((v, i) => { if (!ok(v)) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1); pen = true; });
     if (s.area) svg.appendChild(svgEl("path", { d: d + `L${X(opts.n - 1)},${Y(ymin)}L${X(0)},${Y(ymin)}Z`, fill: s.color, opacity: .1, stroke: "none" }));
     svg.appendChild(svgEl("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash || "none", "stroke-linejoin": "round", "stroke-linecap": "round" }));
-    if (s.endDot) svg.appendChild(svgEl("circle", { cx: X(opts.n - 1), cy: Y(s.ys[opts.n - 1]), r: 4, fill: s.color }));
+    if (s.endDot) { let j = opts.n - 1; while (j > 0 && !ok(s.ys[j])) j--; svg.appendChild(svgEl("circle", { cx: X(j), cy: Y(s.ys[j]), r: 4, fill: s.color })); }
   });
   const guide = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--ink)", "stroke-width": 1, opacity: 0, fill: "none" });
   svg.appendChild(guide);
@@ -561,11 +590,12 @@ function lineChart(host, opts) {
     const r = svg.getBoundingClientRect(), px = ((ev.clientX - r.left) / r.width) * W;
     const i = Math.max(0, Math.min(opts.n - 1, Math.round(((px - m.l) / iw) * (opts.n - 1))));
     guide.setAttribute("x1", X(i)); guide.setAttribute("x2", X(i)); guide.setAttribute("opacity", .25);
-    opts.series.forEach((s, k) => { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(s.ys[i])); dots[k].setAttribute("opacity", 1); });
+    opts.series.forEach((s, k) => { const v = s.ys[i]; dots[k].setAttribute("opacity", ok(v) ? 1 : 0); if (ok(v)) { dots[k].setAttribute("cx", X(i)); dots[k].setAttribute("cy", Y(v)); } });
     tip.innerHTML = opts.tip(i); tip.hidden = false;
     const left = (X(i) / W) * r.width;
     tip.style.left = Math.max(70, Math.min(r.width - 70, left)) + "px";
-    tip.style.top = (Y(Math.max(...opts.series.map(s => s.ys[i]))) / H) * r.height + "px";
+    const vs = opts.series.map(s => s.ys[i]).filter(ok);
+    tip.style.top = (Y(vs.length ? Math.max(...vs) : ymin) / H) * r.height + "px";
   };
   const leave = () => { tip.hidden = true; guide.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); };
   svg.addEventListener("pointermove", move);
@@ -653,7 +683,7 @@ function renderPortfolio() {
       <td class="n ${cls(g)}">${signed$(g)}</td>
       <td class="n ${cls(g)}">${b ? pct(g / b) : "–"}</td>
       <td class="n">${t.value ? ((v / t.value) * 100).toFixed(1) + "%" : "–"}</td>
-      <td class="n"><button type="button" class="ghost" data-act="edit">Edit</button><button type="button" class="ghost danger" data-act="remove">${confirmRemove === h.id ? "Confirm remove" : "Remove"}</button></td>
+      <td class="n">${live.forecast && isPricedLive(h) ? `<button type="button" class="ghost" data-act="forecast">Forecast</button>` : ""}<button type="button" class="ghost" data-act="edit">Edit</button><button type="button" class="ghost danger" data-act="remove">${confirmRemove === h.id ? "Confirm remove" : "Remove"}</button></td>
     </tr>`;
   }).join("")}</tbody>
   <tfoot><tr><td>Total</td><td></td><td></td><td></td><td></td><td></td><td class="n">${fmt$(t.value)}</td><td class="n ${cls(t.gain)}">${signed$(t.gain)}</td><td class="n ${cls(t.gain)}">${t.basis ? pct(t.gain / t.basis) : "–"}</td><td class="n">100%</td><td></td></tr></tfoot>`;
@@ -670,6 +700,7 @@ $("#pf-table").addEventListener("click", e => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
   const id = b.closest("tr").dataset.id;
   if (b.dataset.act === "edit") return openHolding(state.holdings.find(h => h.id === id));
+  if (b.dataset.act === "forecast") return openForecast(state.holdings.find(h => h.id === id).ticker);
   if (confirmRemove !== id) { confirmRemove = id; renderPortfolio(); return; }
   state.holdings = state.holdings.filter(h => h.id !== id); confirmRemove = null;
   save(); renderPortfolio(); renderRetirementIfLinked(); toast("Holding removed");
@@ -723,6 +754,7 @@ const COLS = [
   { k: "ticker", label: "Ticker" }, { k: "sector", label: "Sector" },
   { k: "price", label: "Price", n: true, live: true, f: v => fmt$2(v) },
   { k: "day", label: "Day", n: true, live: true, f: v => pct(v / 100, 2), c: v => cls(v) },
+  { k: "fc", label: "20-day forecast", n: true, live: true, needsFc: true, f: v => pct(v / 100, 1), c: v => cls(v) },
   { k: "mcap", label: "Mkt cap", n: true, f: v => compact$(v * 1e9) },
   { k: "pe", label: "P/E", n: true, f: v => (v > 0 ? v.toFixed(1) : "n/m") },
   { k: "yield", label: "Yield", n: true, f: v => v.toFixed(2) + "%" },
@@ -741,9 +773,9 @@ const FILTER_IDS = { q: "#f-q", sector: "#f-sector", mcap: "#f-mcap", pe: "#f-pe
 let sort = { k: "mcap", dir: -1 }, activePreset = null;
 const universe = () => {
   const base = state.screen || SAMPLE_STOCKS;
-  return base.map(s => { const q = screenQuotes[s.ticker]; return q && !q.error ? { ...s, price: q.price, day: q.prevClose ? (q.price / q.prevClose - 1) * 100 : NaN } : { ...s, price: NaN, day: NaN }; });
+  return base.map(s => { const q = screenQuotes[s.ticker]; return q && !q.error ? { ...s, price: q.price, day: q.prevClose ? (q.price / q.prevClose - 1) * 100 : NaN, fc: fcReturn(s.ticker) } : { ...s, price: NaN, day: NaN, fc: fcReturn(s.ticker) }; });
 };
-const visibleCols = () => COLS.filter(c => !c.live || live.ok);
+const visibleCols = () => COLS.filter(c => (!c.live || live.ok) && (!c.needsFc || live.forecast));
 
 function populateSectors() {
   const sel = $("#f-sector"), cur = sel.value;
@@ -784,12 +816,14 @@ function renderScreener() {
     <td><span class="tkr">${esc(s.ticker)}</span><span class="nm">${esc(s.name)}</span></td>
     <td>${esc(s.sector)}</td>
     ${cols.slice(2).map(c => `<td class="n ${c.c && Number.isFinite(s[c.k]) ? c.c(s[c.k]) : ""}">${Number.isFinite(s[c.k]) ? c.f(s[c.k]) : "–"}</td>`).join("")}
-    <td class="n">${held.has(s.ticker) ? `<span class="fine">In portfolio</span>` : `<button type="button" class="ghost" data-add="${esc(s.ticker)}">Add to portfolio</button>`}</td>
+    <td class="n">${live.forecast ? `<button type="button" class="ghost" data-fc="${esc(s.ticker)}">Forecast</button>` : ""}${held.has(s.ticker) ? `<span class="fine">In portfolio</span>` : `<button type="button" class="ghost" data-add="${esc(s.ticker)}">Add to portfolio</button>`}</td>
   </tr>`).join("") : `<tr><td colspan="${cols.length + 1}" class="empty">No stocks pass every filter. Loosen one, or reset filters.</td></tr>`}</tbody>`;
 }
 $("#sc-table").addEventListener("click", e => {
   const s = e.target.closest("button.sort");
   if (s) { const k = s.dataset.k; sort = { k, dir: sort.k === k ? -sort.dir : (k === "ticker" || k === "sector" || k === "pe" || k === "beta" ? 1 : -1) }; renderScreener(); return; }
+  const fcb = e.target.closest("button[data-fc]");
+  if (fcb) return openForecast(fcb.dataset.fc);
   const a = e.target.closest("button[data-add]");
   if (a) {
     const st = universe().find(x => x.ticker === a.dataset.add);
@@ -988,7 +1022,7 @@ $("#data-restore").addEventListener("click", () => {
 
 /* ---------- live prices ---------- */
 // Live quotes need the bundled server (python glidepath/server.py). Opened any other way, prices stay manual.
-const live = { ok: false, busy: false };
+const live = { ok: false, busy: false, forecast: false };
 let screenQuotes = {}, screenQuotesAt = 0;
 const isPricedLive = h => h.cls !== "Cash" && h.ticker !== "CASH";
 async function getQuotes(symbols) {
@@ -1056,15 +1090,84 @@ async function detectLive() {
   if (!/^https?:$/.test(location.protocol)) return renderLiveStatus();
   try {
     const r = await fetch("api/health", { cache: "no-store" });
-    live.ok = r.ok && (await r.json()).ok === true;
+    const j = r.ok ? await r.json() : {};
+    live.ok = j.ok === true; live.forecast = live.ok && j.forecast === true;
   } catch (e) { live.ok = false; }
   renderLiveStatus();
   if (!live.ok) return;
   if (!state.quotesAt || Date.now() - state.quotesAt > 5 * 60e3) refreshPrices({ quiet: true });
   if (current === "screener") { renderScreener(); loadScreenQuotes(); }
+  if (current === "portfolio") renderPortfolio();
   setInterval(() => { if (document.visibilityState === "visible") refreshPrices({ quiet: true }); }, 5 * 60e3);
 }
 $("#btn-refresh").addEventListener("click", () => refreshPrices());
+
+/* ---------- Kronos forecasts ---------- */
+const forecasts = {};   // symbol -> server result (kept for this page load)
+const fcReturn = t => (forecasts[t] ? forecasts[t].summary.medianReturn * 100 : NaN);
+let fcToken = 0;
+function trackRecordHTML(tr) {
+  if (!tr) return `<div class="record"><strong>No track record on file.</strong><span>Run <code>python glidepath/backtest.py</code> to measure how these forecasts would have done.</span></div>`;
+  const beat = tr.mae_model < tr.mae_nochange;
+  const good = beat && tr.rank_ic_t > 2;
+  return `<div class="record ${good ? "good" : ""}">
+    <strong>${good ? "These forecasts have shown some skill in testing." : "In testing, these forecasts did not beat a simple “no change” guess. Treat them as a view of possible ranges, not a prediction."}</strong>
+    <dl>
+      <dt>Typical error, Kronos</dt><dd>${(tr.mae_model * 100).toFixed(1)}%</dd>
+      <dt>Typical error, “no change”</dt><dd>${(tr.mae_nochange * 100).toFixed(1)}%</dd>
+      <dt>Picked direction right</dt><dd>${Math.round(tr.dir_acc * 100)}% (stocks rose ${Math.round(tr.base_up * 100)}% of the time)</dd>
+      <dt>Outcome inside the range</dt><dd>${Math.round(tr.coverage_p10_p90 * 100)}% (an honest 10–90% range scores 80%)</dd>
+      <dt>Ranking stocks against each other</dt><dd>correlation ${tr.rank_ic_mean.toFixed(2)} (t = ${tr.rank_ic_t.toFixed(1)})</dd>
+    </dl>
+    <span class="fine">${esc(tr.description || "")}</span>
+  </div>`;
+}
+function renderForecast(f) {
+  const s = f.summary, hist = f.history, fc = f.forecast;
+  const n = hist.close.length + fc.p50.length, H = hist.close.length;
+  const pad = a => Array(H - 1).fill(null).concat([hist.close[H - 1]], a);
+  const dates = hist.dates.concat(fc.dates);
+  $("#fc-sub").textContent = `${f.model} · ${s.samples} simulated paths · data to ${f.asOf}`;
+  $("#fc-content").innerHTML = `
+    <div class="fc-stats">
+      <div class="stat"><span class="eyebrow">Median path, ${s.horizonDays} days</span><span class="value ${cls(s.medianReturn)}">${pct(s.medianReturn)}</span><span class="sub">from ${fmt$2(f.last)}</span></div>
+      <div class="stat"><span class="eyebrow">10–90% range</span><span class="value">${pct(s.p10Return, 0)} to ${pct(s.p90Return, 0)}</span><span class="sub">across simulated paths</span></div>
+      <div class="stat"><span class="eyebrow">Paths that end higher</span><span class="value">${Math.round(s.probUp * 100)}%</span><span class="sub">of ${s.samples}</span></div>
+    </div>
+    <div class="chart" id="fc-chart"></div>
+    ${trackRecordHTML(f.trackRecord)}
+    <p class="fine">Kronos is a research model trained on price and volume patterns. It knows nothing about earnings, news or valuation. Do not trade on it alone.</p>`;
+  lineChart($("#fc-chart"), {
+    n, height: 240, zero: false, yFmt: v => "$" + (v >= 1000 ? Math.round(v).toLocaleString("en-US") : v.toFixed(v < 10 ? 2 : 0)),
+    label: "Price history and forecast range", x: i => { const [y, m, d] = dates[i].split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" }); },
+    band: { lo: pad(fc.p10), hi: pad(fc.p90) },
+    markers: [{ i: H - 1, label: "Forecast" }],
+    series: [
+      { ys: hist.close.concat(Array(fc.p50.length).fill(null)), color: "var(--ink)", width: 1.5 },
+      { ys: pad(fc.p50), color: "var(--accent)", width: 2, dash: "5 4" },
+    ],
+    tip: i => i < H ? `${esc(dates[i])}<br>Close ${fmt$2(hist.close[i])}` : `${esc(dates[i])}<br>Median ${fmt$2(fc.p50[i - H])}<br>Range ${fmt$2(fc.p10[i - H])} – ${fmt$2(fc.p90[i - H])}`,
+  });
+}
+async function openForecast(sym) {
+  const dlg = $("#dlg-forecast"), token = ++fcToken;
+  $("#fc-title").textContent = sym + " · 20-day forecast";
+  $("#fc-sub").textContent = "";
+  if (!dlg.open) dlg.showModal();
+  if (forecasts[sym]) return renderForecast(forecasts[sym]);
+  $("#fc-content").innerHTML = `<p class="empty"><span class="spin"></span>Running Kronos on two years of daily prices. This takes 10–40 seconds, longer the first time while the model downloads.</p>`;
+  try {
+    const r = await fetch("api/forecast?symbol=" + encodeURIComponent(sym), { cache: "no-store" });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Forecast failed");
+    forecasts[sym] = j;
+    if (current === "screener") renderScreener();
+    if (token === fcToken && dlg.open) renderForecast(j);
+  } catch (err) {
+    if (token === fcToken) $("#fc-content").innerHTML = `<p class="err">Couldn't forecast ${esc(sym)}: ${esc(err.message)}</p>`;
+  }
+}
+$("#dlg-forecast").addEventListener("close", () => fcToken++);
 
 /* ---------- routing ---------- */
 const VIEWS = ["portfolio", "screener", "retirement"];

@@ -24,10 +24,36 @@ YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/{}?range=5d&interval=
 UA = "Mozilla/5.0 (Glidepath personal portfolio tracker)"
 CACHE_TTL = 60  # seconds
 MAX_SYMBOLS = 100
+MODEL_SIZE, LOOKBACK = "small", 120  # set from backtest results; see forecast_backtest.json
 SYMBOL_RE = re.compile(r"^[A-Z0-9.\-^=]{1,15}$")
 
 _cache = {}
 _lock = threading.Lock()
+
+import forecast as kronos_forecast  # noqa: E402  (stdlib-only at import; heavy deps load on first forecast)
+
+FORECAST_OK = kronos_forecast.dependencies_available()
+_forecaster = None
+_fc_cache = {}  # (symbol, as-of date) -> result
+_fc_lock = threading.Lock()
+BACKTEST_FILE = ROOT / "forecast_backtest.json"
+
+
+def get_forecast(sym, size):
+    global _forecaster
+    df = kronos_forecast.fetch_daily(sym)
+    key = (sym, str(df["timestamps"].iloc[-1].date()))
+    with _fc_lock:
+        if key in _fc_cache:
+            return _fc_cache[key]
+        if _forecaster is None:
+            _forecaster = kronos_forecast.Forecaster(size)
+    future, closes = _forecaster.paths(df, horizon=20, samples=16, lookback=LOOKBACK)
+    out = kronos_forecast.summarize(sym, df, future, closes)
+    out["model"] = f"Kronos-{size}, {LOOKBACK}-day lookback"
+    with _fc_lock:
+        _fc_cache[key] = out
+    return out
 
 
 def yahoo_symbol(sym):
@@ -95,7 +121,24 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         if u.path == "/api/health":
-            return self._json(200, {"ok": True, "source": "Yahoo Finance (unofficial)"})
+            return self._json(200, {"ok": True, "source": "Yahoo Finance (unofficial)", "forecast": FORECAST_OK})
+        if u.path == "/api/forecast":
+            sym = urllib.parse.parse_qs(u.query).get("symbol", [""])[0].strip().upper()
+            if not SYMBOL_RE.match(sym):
+                return self._json(400, {"error": "Pass one valid symbol."})
+            if not FORECAST_OK:
+                return self._json(503, {"error": "Forecasts need the Kronos dependencies: pip install -r requirements.txt"})
+            try:
+                out = get_forecast(sym, MODEL_SIZE)
+            except urllib.error.HTTPError as e:
+                return self._json(404 if e.code == 404 else 502, {"error": "Unknown symbol" if e.code == 404 else "Price history unavailable"})
+            except (ValueError, urllib.error.URLError) as e:
+                return self._json(422, {"error": str(getattr(e, "reason", e))[:160]})
+            try:
+                out = {**out, "trackRecord": json.loads(BACKTEST_FILE.read_text()).get("chosen")}
+            except (OSError, ValueError):
+                pass
+            return self._json(200, out)
         if u.path == "/api/quotes":
             q = urllib.parse.parse_qs(u.query).get("symbols", [""])[0]
             syms = list(dict.fromkeys(s.strip().upper() for s in q.split(",") if s.strip()))
@@ -114,7 +157,13 @@ def main():
     ap = argparse.ArgumentParser(description="Run Glidepath with live quotes.")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--model", choices=["mini", "small", "base"], default=None, help="Kronos model size for forecasts")
+    ap.add_argument("--lookback", type=int, default=None, help="Trading days of history fed to Kronos")
     a = ap.parse_args()
+    global MODEL_SIZE, LOOKBACK
+    MODEL_SIZE = a.model or MODEL_SIZE
+    LOOKBACK = a.lookback or LOOKBACK
+    print("Forecasts:", f"Kronos-{MODEL_SIZE}, {LOOKBACK}-day lookback" if FORECAST_OK else "off (pip install -r requirements.txt to enable)")
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     print(f"Glidepath running at http://{a.host}:{a.port}  (Ctrl+C to stop)")
     try:
