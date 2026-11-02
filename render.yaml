@@ -1,0 +1,17 @@
+# Render Blueprint for Glidepath (see glidepath/DEPLOY.md).
+# Public mode: anyone can use it, no sign-in, nothing stored on the server;
+# each visitor's portfolio stays in their own browser. Free plan sleeps after ~15 idle minutes.
+services:
+  - type: web
+    name: glidepath
+    runtime: python
+    plan: free
+    rootDir: glidepath
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: python server.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: GLIDEPATH_PUBLIC
+        value: "1"
