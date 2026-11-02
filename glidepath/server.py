@@ -3,15 +3,19 @@
 
 Usage:  python glidepath/server.py [--port 8000] [--host 127.0.0.1]
 
-Hosting: set GLIDEPATH_PASSWORD (required online), GLIDEPATH_SECRET and
-DATABASE_URL (see storage.py). PORT is read from the environment if set.
+Hosting, private: set GLIDEPATH_PASSWORD, GLIDEPATH_SECRET and DATABASE_URL
+(see storage.py). Hosting, public: set GLIDEPATH_PUBLIC=1 (no sign-in, nothing
+stored on the server, each visitor's data stays in their own browser, API
+requests rate-limited). PORT is read from the environment if set.
 
 Quotes come from Yahoo Finance's public chart endpoint. It is unofficial and
 undocumented, so it can change or rate-limit without notice. Uses only the
 Python standard library.
 """
 import argparse
+import collections
 import html
+import ipaddress
 import json
 import os
 import re
@@ -42,6 +46,30 @@ import auth  # noqa: E402
 import storage  # noqa: E402
 
 STORE = None  # set in main()
+PUBLIC = os.environ.get("GLIDEPATH_PUBLIC", "").strip().lower() in ("1", "true", "yes")
+RATE_WINDOW, RATE_PER_CLIENT, RATE_OVERALL = 60, 90, 1500  # API requests per minute
+NEG_TTL, MAX_FALLBACK, MAX_CACHE = 600, 20, 5000
+_hits = {}
+_hits_lock = threading.Lock()
+
+
+def rate_limited(client):
+    """Sliding one-minute window per client and overall; protects the shared Yahoo access."""
+    now = time.time()
+    with _hits_lock:
+        if len(_hits) > 20000:  # forget idle clients
+            for k in [k for k, q in _hits.items() if not q or now - q[-1] > RATE_WINDOW]:
+                del _hits[k]
+        res = []
+        for key, cap in ((client, RATE_PER_CLIENT), ("*", RATE_OVERALL)):
+            q = _hits.setdefault(key, collections.deque())
+            while q and now - q[0] > RATE_WINDOW:
+                q.popleft()
+            res.append(len(q) >= cap)
+        if any(res):
+            return True
+        _hits[client].append(now); _hits["*"].append(now)
+        return False
 STATIC = {"/": "index.html", "/index.html": "index.html", "/sp500.js": "sp500.js"}
 MAX_BODY = 2 * 1024 * 1024
 LOGIN_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -62,7 +90,7 @@ button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px;bac
 {error}<button type="submit">Sign in</button></form></body></html>"""
 
 
-FORECAST_OK = kronos_forecast.dependencies_available()
+FORECAST_OK = kronos_forecast.dependencies_available() and os.environ.get("GLIDEPATH_PUBLIC", "").strip().lower() not in ("1", "true", "yes")
 _forecaster = None
 _fc_cache = {}  # (symbol, as-of date) -> result
 _fc_lock = threading.Lock()
@@ -130,25 +158,40 @@ def fetch_quote(sym):
     return out
 
 
+def _remember(sym, now, q):
+    with _lock:
+        if len(_cache) >= MAX_CACHE:
+            for k in sorted(_cache, key=lambda k: _cache[k][0])[: MAX_CACHE // 5]:
+                del _cache[k]
+        _cache[sym] = (now, q)
+
+
 def get_quotes(syms):
     """Batch quotes through Yahoo's quote endpoint; per-symbol chart lookups for anything it misses."""
     now = time.time()
     with _lock:
-        out = {s: _cache[s][1] for s in syms if s in _cache and now - _cache[s][0] < CACHE_TTL}
+        out = {s: _cache[s][1] for s in syms
+               if s in _cache and now - _cache[s][0] < (NEG_TTL if "error" in _cache[s][1] else CACHE_TTL)}
     todo = [s for s in syms if s not in out]
     if todo:
         try:
             got = yahoo.quotes(todo)
         except Exception:
             got = {}
-        with _lock:
-            for s, q in got.items():
-                _cache[s] = (now, q)
+        for s, q in got.items():
+            _remember(s, now, q)
         out.update(got)
         missing = [s for s in todo if s not in got]
-        if missing:
+        # One-by-one lookups only for a few symbols per request, so junk symbols can't flood Yahoo.
+        retry, skip = missing[:MAX_FALLBACK], missing[MAX_FALLBACK:]
+        if retry:
             with ThreadPoolExecutor(max_workers=6) as ex:
-                out.update(zip(missing, ex.map(fetch_quote, missing)))
+                for s, q in zip(retry, ex.map(fetch_quote, retry)):
+                    out[s] = q
+                    if "error" in q:
+                        _remember(s, now, q)
+        for s in skip:
+            out[s] = {"error": "No quote"}
     return out
 
 
@@ -190,8 +233,16 @@ class Handler(SimpleHTTPRequestHandler):
         return self.headers.get("X-Forwarded-Proto", "").lower() == "https"
 
     def _client(self):
-        fwd = self.headers.get("X-Forwarded-For", "")
-        return fwd.split(",")[0].strip() or self.client_address[0]
+        # Trust X-Forwarded-For only when the connection comes from a proxy on a private network
+        # (as on Render). Then its last entry is the address the proxy saw; earlier entries can be
+        # typed by the visitor. Direct connections use the socket address, which can't be faked.
+        peer = self.client_address[0]
+        try:
+            via_proxy = ipaddress.ip_address(peer).is_private
+        except ValueError:
+            via_proxy = False
+        fwd = [p.strip() for p in self.headers.get("X-Forwarded-For", "").split(",") if p.strip()]
+        return fwd[-1] if (via_proxy and fwd) else peer
 
     def _authed(self):
         return auth.valid_session(self.headers.get("Cookie"))
@@ -245,7 +296,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         u = urllib.parse.urlparse(self.path)
-        if u.path != "/api/state":
+        if u.path != "/api/state" or STORE is None:
             return self._json(404, {"error": "Not found"})
         if not self._authed():
             return self._json(401, {"error": "Sign in first."})
@@ -291,9 +342,14 @@ class Handler(SimpleHTTPRequestHandler):
             if u.path.startswith("/api/"):
                 return self._json(401, {"error": "Sign in first."})
             return self._redirect("login")
+        if u.path.startswith("/api/") and rate_limited(self._client()):
+            return self._json(429, {"error": "Too many requests. Wait a minute and try again."})
+        if u.path == "/api/state" and STORE is None:
+            return self._json(404, {"error": "This server doesn't store data; it stays in your browser."})
         if u.path == "/api/health":
             return self._json(200, {"ok": True, "source": "Yahoo Finance (unofficial)", "forecast": FORECAST_OK,
-                                    "sync": STORE is not None, "store": STORE.kind if STORE else None, "auth": auth.enabled})
+                                    "sync": STORE is not None, "store": STORE.kind if STORE else None, "auth": auth.enabled,
+                                    "public": PUBLIC})
         if u.path == "/api/state":
             try:
                 state, at = STORE.get()
@@ -344,9 +400,13 @@ def main():
     LOOKBACK = a.lookback or LOOKBACK
     print("Forecasts:", f"Kronos-{MODEL_SIZE}, {LOOKBACK}-day lookback" if FORECAST_OK else "off (pip install -r requirements.txt to enable)")
     global STORE
-    STORE = storage.make_store(ROOT)
-    print("Data stored in:", STORE.kind)
-    if a.host not in ("127.0.0.1", "localhost") and not auth.enabled:
+    if PUBLIC:
+        STORE = None
+        print("Public mode: no sign-in, nothing stored on the server, API rate-limited.")
+    else:
+        STORE = storage.make_store(ROOT)
+        print("Data stored in:", STORE.kind)
+    if a.host not in ("127.0.0.1", "localhost") and not auth.enabled and not PUBLIC:
         print("WARNING: reachable from other devices with no password. Set GLIDEPATH_PASSWORD before putting this online.")
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     threading.Thread(target=sp500_refresher, daemon=True).start()
